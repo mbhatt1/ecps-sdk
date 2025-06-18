@@ -1,6 +1,6 @@
 # ECPS-UV Python SDK
 
-The Python implementation of the Embodied Cognitive-Physical Systems Unified Virtualization (ECPS-UV) SDK.
+The Python implementation of the Embodied Cognition Protocol Stack (ECPS) SDK.
 
 ## Overview
 

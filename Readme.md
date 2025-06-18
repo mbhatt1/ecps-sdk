@@ -1,4 +1,4 @@
-# ECPS-UV: UV-based Python SDK for the Embodied Cognition Protocol Stack
+# ECPS: Embodied Cognition Protocol Stack for Agent and Robot Communication
 
 ECPS-UV is a complete, high-performance Python implementation of the Embodied Cognition Protocol Stack (ECPS) specification, utilizing the UV library for asynchronous I/O operations.
 

@@ -166,17 +166,412 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+### Go Server Example
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "time"
+    
+    "github.com/ecps/ecps-go/pkg/actuation"
+    "github.com/ecps/ecps-go/pkg/cognition"
+    "github.com/ecps/ecps-go/pkg/core"
+    "github.com/ecps/ecps-go/pkg/transport"
+    "github.com/ecps/ecps-go/pkg/trust"
+)
+
+func main() {
+    // Initialize transport
+    transport, err := transport.NewMQTTTransport("localhost:1883")
+    if err != nil {
+        log.Fatalf("Failed to create transport: %v", err)
+    }
+    
+    // Initialize trust provider
+    trustProvider := trust.NewTrustProvider()
+    if err := trustProvider.Initialize(); err != nil {
+        log.Fatalf("Failed to initialize trust: %v", err)
+    }
+    
+    // Create EAP handler with versioned logging
+    eapHandler, err := actuation.NewEAPHandler(
+        transport,
+        core.NewProtobufSerializer(),
+        core.NewTelemetry(),
+        core.NewDefaultLogger(),
+        actuation.WithLogDirectory("./logs"),
+    )
+    if err != nil {
+        log.Fatalf("Failed to create EAP handler: %v", err)
+    }
+    
+    // Create MCP handler
+    mcpHandler := cognition.NewMCPHandler(transport)
+    
+    // Start listening for actions
+    go func() {
+        if err := eapHandler.ListenForActions(context.Background(), "robot/actions"); err != nil {
+            log.Printf("EAP listener error: %v", err)
+        }
+    }()
+    
+    // Start listening for cognition requests
+    go func() {
+        if err := mcpHandler.ListenForRequests(context.Background(), "cognition/requests"); err != nil {
+            log.Printf("MCP listener error: %v", err)
+        }
+    }()
+    
+    log.Println("ECPS Go server started")
+    
+    // Keep server running
+    select {}
+}
+```
+
+### Go Client Example
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "time"
+    
+    "github.com/ecps/ecps-go/pkg/actuation"
+    "github.com/ecps/ecps-go/pkg/cognition"
+    "github.com/ecps/ecps-go/pkg/core"
+    "github.com/ecps/ecps-go/pkg/transport"
+)
+
+func main() {
+    // Initialize transport
+    transport, err := transport.NewMQTTTransport("localhost:1883")
+    if err != nil {
+        log.Fatalf("Failed to create transport: %v", err)
+    }
+    
+    // Create EAP handler
+    eapHandler, err := actuation.NewEAPHandler(
+        transport,
+        core.NewProtobufSerializer(),
+        core.NewTelemetry(),
+        core.NewDefaultLogger(),
+    )
+    if err != nil {
+        log.Fatalf("Failed to create EAP handler: %v", err)
+    }
+    
+    // Create MCP handler
+    mcpHandler := cognition.NewMCPHandler(transport)
+    
+    ctx := context.Background()
+    
+    // Send MCP request
+    prompt := "Move the robot arm to pick up the object"
+    mcpID, err := mcpHandler.SendRequest(ctx, prompt, map[string]interface{}{
+        "model": "gpt-4",
+        "temperature": 0.7,
+    })
+    if err != nil {
+        log.Fatalf("Failed to send MCP request: %v", err)
+    }
+    log.Printf("Sent MCP request with ID: %s", mcpID)
+    
+    // Send robot action
+    actionParams := actuation.ActionParams{
+        Target:     "robot_arm",
+        Parameters: map[string]interface{}{
+            "x": 0.5, "y": 0.3, "z": 0.2,
+            "qw": 1.0, "qx": 0.0, "qy": 0.0, "qz": 0.0,
+        },
+        Priority: 10,
+        Timeout:  30000, // 30 seconds
+    }
+    
+    actionID, err := eapHandler.PerformDirectAction(
+        ctx,
+        "robot_arm",
+        "set_pose",
+        actionParams.Parameters,
+        nil, // payload
+        actionParams.Timeout,
+        actionParams.Priority,
+        map[string]interface{}{"qos": "reliable"},
+    )
+    if err != nil {
+        log.Fatalf("Failed to send action: %v", err)
+    }
+    log.Printf("Sent action with ID: %s", actionID)
+    
+    // Wait for responses
+    time.Sleep(5 * time.Second)
+    log.Println("Client completed")
+}
+```
+
+### Go Hardware Security Example
+
+```go
+package main
+
+import (
+    "crypto/rand"
+    "log"
+    
+    "github.com/ecps/ecps-go/pkg/trust"
+)
+
+func main() {
+    // Initialize hardware security manager
+    manager := trust.NewHardwareSecurityManager()
+    if err := manager.Initialize(); err != nil {
+        log.Fatalf("Failed to initialize hardware security: %v", err)
+    }
+    defer manager.Cleanup()
+    
+    provider := manager.GetActiveProvider()
+    log.Printf("Using hardware security provider: %s", provider.GetHardwareType())
+    
+    // Generate hardware-backed device identity
+    identity, err := provider.GenerateKey("robot_key")
+    if err != nil {
+        log.Fatalf("Failed to generate device identity: %v", err)
+    }
+    log.Printf("Device ID: %s", identity.DeviceID)
+    log.Printf("Hardware Type: %s", identity.HardwareType)
+    
+    // Test signing and verification
+    testData := []byte("Hello, ECPS-UV Hardware Security!")
+    signature, err := provider.Sign("robot_key", testData)
+    if err != nil {
+        log.Fatalf("Failed to sign data: %v", err)
+    }
+    
+    if err := provider.Verify("robot_key", testData, signature); err != nil {
+        log.Fatalf("Signature verification failed: %v", err)
+    }
+    log.Println("✓ Signature verification successful")
+    
+    // Create hardware attestation
+    nonce := make([]byte, 32)
+    rand.Read(nonce)
+    
+    report, err := provider.CreateAttestation(nonce, trust.AttestationDeviceIdentity)
+    if err != nil {
+        log.Fatalf("Failed to create attestation: %v", err)
+    }
+    log.Printf("Attestation created for device: %s", report.DeviceID)
+    
+    // Verify attestation
+    if err := provider.VerifyAttestation(report); err != nil {
+        log.Fatalf("Attestation verification failed: %v", err)
+    }
+    log.Println("✓ Attestation verification successful")
+}
+```
+
+### Go Log Versioning Example
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "log"
+    "time"
+    
+    "github.com/ecps/ecps-go/pkg/actuation"
+)
+
+func main() {
+    // Create versioned log with metadata
+    robotID := "robot_001"
+    sessionID := "mission_123"
+    metadata := map[string]interface{}{
+        "location": "warehouse_a",
+        "mission":  "inventory_check",
+    }
+    
+    writer := actuation.NewLogWriter(
+        "robot_mission.eaplog",
+        actuation.LogVersionV21,
+        &robotID,
+        &sessionID,
+        metadata,
+    )
+    
+    if err := writer.Open(); err != nil {
+        log.Fatalf("Failed to create log: %v", err)
+    }
+    defer writer.Close()
+    
+    // Log actions with rich metadata
+    for i := 0; i < 5; i++ {
+        actionData := map[string]interface{}{
+            "action_id":  i,
+            "action":     "move_to_position",
+            "target":     map[string]float64{"x": 1.5, "y": 2.0, "z": 0.0},
+            "timestamp":  time.Now().Unix(),
+        }
+        
+        actionJSON, err := json.Marshal(actionData)
+        if err != nil {
+            log.Fatalf("Failed to marshal action: %v", err)
+        }
+        
+        if err := writer.WriteMessage(actionJSON); err != nil {
+            log.Fatalf("Failed to write message: %v", err)
+        }
+    }
+    
+    log.Printf("Logged %d actions to versioned log", writer.GetMessageCount())
+    
+    // Read log with version detection
+    reader := actuation.NewLogReader("robot_mission.eaplog")
+    if err := reader.Open(); err != nil {
+        log.Fatalf("Failed to open log: %v", err)
+    }
+    defer reader.Close()
+    
+    info, err := reader.GetInfo()
+    if err != nil {
+        log.Fatalf("Failed to get log info: %v", err)
+    }
+    
+    log.Printf("Log version: %s", info["version"])
+    log.Printf("Robot ID: %s", info["robot_id"])
+    
+    messages, err := reader.ReadMessages()
+    if err != nil {
+        log.Fatalf("Failed to read messages: %v", err)
+    }
+    log.Printf("Read %d messages from log", len(messages))
+    
+    // Migrate legacy logs to latest version
+    migrator := actuation.NewLogMigrator()
+    if err := migrator.MigrateFile(
+        "legacy.eaplog",
+        "updated.eaplog",
+        actuation.LogVersionV21,
+        &robotID,
+        &sessionID,
+        metadata,
+    ); err != nil {
+        log.Printf("Migration failed (legacy file may not exist): %v", err)
+    } else {
+        log.Println("✓ Successfully migrated legacy log to V2.1")
+    }
+}
+```
+
+## Installation
+
+### Python Installation
+
+```bash
+pip install ecps-uv
+```
+
+For development installation:
+
+```bash
+git clone https://github.com/yourusername/ecps-uv.git
+cd ecps-uv
+pip install -e .
+```
+
+### Go Installation
+
+```bash
+go mod init your-project
+go get github.com/ecps/ecps-go
+```
+
+For development:
+
+```bash
+git clone https://github.com/yourusername/ecps-uv.git
+cd ecps-uv/ecps-go
+go mod tidy
+go build ./...
+```
+
+## Command-Line Tools
+
+### Python EAP Log Tool
+
+```bash
+# Install the Python package first
+pip install ecps-uv
+
+# Use the eaplog tool
+python -m ecps_uv.tools.eaplog_tool info robot.eaplog
+python -m ecps_uv.tools.eaplog_tool validate robot.eaplog
+python -m ecps_uv.tools.eaplog_tool migrate --source old.eaplog --target new.eaplog --version 2.1
+```
+
+### Go EAP Log Tool
+
+```bash
+# Build the Go tool
+cd ecps-go
+go build -o eaplog ./cmd/eaplog
+
+# Use the tool
+./eaplog info robot.eaplog
+./eaplog validate robot.eaplog
+./eaplog migrate -source old.eaplog -target new.eaplog -version 2.1
+./eaplog list -file robot.eaplog -max 10
+./eaplog create -file new.eaplog -version 2.1 -robot-id robot_001
+```
 ```
 
 ## Complete Examples
 
-For complete examples, check the `examples/` directory. In particular:
+### Python Examples
+
+For complete Python examples, check the `examples/` directory:
 
 - `examples/ecps_demo.py`: Demonstrates basic functionality
 - `examples/secure_ecps.py`: Shows how to use the trust layer for secure communication
 - `examples/hardware_security_demo.py`: **NEW** - Hardware security integration showcase
 - `examples/identity_management_demo.py`: Identity and principal management
 - `examples/trust_decorators_demo.py`: Trust decorators and security levels
+
+### Go Examples
+
+For complete Go examples, check the `ecps-go/examples/` directory:
+
+- `ecps-go/examples/basic_client/main.go`: Basic Go client implementation
+- `ecps-go/examples/basic_server/main.go`: Basic Go server implementation
+- `ecps-go/examples/hardware_security_demo/main.go`: **NEW** - Complete hardware security showcase
+- `ecps-go/examples/identity_management/main.go`: Identity and principal management
+- `ecps-go/examples/secure_communication/main.go`: Secure communication with trust layer
+- `ecps-go/examples/robot_assistant/main.go`: Robot assistant with cognitive capabilities
+
+### Running Examples
+
+**Python Examples:**
+```bash
+cd examples
+python ecps_demo.py
+python secure_ecps.py
+python hardware_security_demo.py
+```
+
+**Go Examples:**
+```bash
+cd ecps-go/examples
+go run ./basic_server
+go run ./basic_client
+go run ./hardware_security_demo
+go run ./secure_communication
+```
 
 ### Hardware Security Example
 

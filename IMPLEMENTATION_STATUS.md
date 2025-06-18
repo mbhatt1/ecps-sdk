@@ -103,6 +103,8 @@ Key features implemented:
 - [x] Secure transport wrapper - Transparent security for all protocol layers
 - [x] Multiple trust levels - None, Encryption, Authentication, Authorization, Auditing
 - [x] Principal management - User and role management with permissions
+- [x] Identity management - Comprehensive identity system with multiple types
+- [x] Python-specific decorator API - Easy-to-use decorators for security enforcement
 
 Key features implemented:
 - JWT-based authentication with configurable expiration
@@ -112,6 +114,10 @@ Key features implemented:
 - Transport-level security with TLS support
 - Secure messaging envelope for all protocol messages
 - Transparent integration with existing transport implementations
+- Identity lifecycle management (create, update, disable, delete)
+- Multiple identity types (User, Service, Device, Robot)
+- Association between identities and principals for flexible authorization
+- Python decorator API for elegant security enforcement
 
 ## Examples and Testing
 - [x] Basic client example - Complete example using all protocols

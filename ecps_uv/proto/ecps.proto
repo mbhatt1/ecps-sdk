@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package ecps;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+// --- L6 Cognition: Model Context Protocol (MCP v1.0) ---
+message MCP {
+  string spec = "mcp/1.0"; // MUST take the form "mcp/1.0"
+  string id = 1;           // CloudEvents id mirror
+  string prompt = 2;       // ≤16 KiB UTF-8
+  // tool_call as a JSON blob. It's best practice to define a specific Protobuf message
+  // if the structure is known. For truly arbitrary JSON, use bytes or string.
+  // Using bytes for raw JSON blob per original spec implies; client will parse.
+  bytes tool_json = 3;     // Optional JSON blob representing tool schema, if any
+  map<string, string> meta = 4;
+}
+
+// --- L5 Perception data: Latent Tensor Protocol (LTP v0.9) ---
+message LTP {
+  string  spec = "ltp/0.9"; // MUST take the form "ltp/0.9"
+  bytes   tensor_zstd = 1;   // zstd-compressed ND array
+  repeated uint32 shape = 2; // e.g. [B,L,D]
+  string  dtype = 3;        // "f32" | "f16" | "u8" | ...
+  string  frame_id = 4;     // Reference coordinate frame
+  uint64  timestamp_ns = 5; // Nanoseconds since Unix epoch
+}
+
+// --- L6 Cognition: Memory Exchange Protocol (MEP v1.0) ---
+service MemoryStore {
+  rpc Put(LTP) returns (Ack);
+  rpc Query(QueryReq) returns (stream LTP); // Servers MUST return at most k embeddings with cosine-sim >= min_sim.
+}
+
+message QueryReq {
+  LTP query_embedding = 1;
+  uint32 k = 2;              // Max number of embeddings to return
+  float min_sim = 3;         // Minimum cosine similarity (0.0 to 1.0)
+  // Potentially add range queries:
+  // google.protobuf.Timestamp start_time = 4;
+  // google.protobuf.Timestamp end_time = 5;
+  // repeated string frame_ids = 6;
+}
+
+message Ack {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- L7 Actuation: Embodied Action Protocol (EAP v0.1) ---
+message EAP {
+  string spec = "eap/0.1";
+  string id = 1;                  // CloudEvents id mirror
+  bytes  state_sha = 2;           // SHA-256 of perceptual snapshot
+
+  oneof body {
+    RobotPose set_pose = 10;
+    GripperOp gripper = 11;
+    CloudOp   cloud = 12;
+    SimStep   sim = 13;
+    // Add other action types here (e.g., NavigateTo, PickAndPlace, Manipulate)
+  }
+
+  map<string, string> meta = 20;    // "safety":"stop_on_fail", etc.
+}
+
+// Nested messages for EAP `oneof body`
+message RobotPose {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+  double qw = 4;
+  double qx = 5;
+  double qy = 6;
+  double qz = 7;
+  // For more complex poses, consider adding frame_id, and timestamp here if the pose itself has a specific temporal context
+  // string frame_id = 8;
+  // uint64 timestamp_ns = 9;
+}
+
+message GripperOp {
+  enum GripperCommand {
+    GRIPPER_COMMAND_UNSPECIFIED = 0;
+    OPEN = 1;
+    CLOSE = 2;
+    GRIP = 3; // Attempt to grip with force feedback
+  }
+  GripperCommand command = 1;
+  float position = 2; // e.g., 0.0 (closed) to 1.0 (open)
+  float force_limit = 3; // e.g., in Newtons
+}
+
+message CloudOp {
+  string api_name = 1; // e.g., "object_detection_service"
+  string method_name = 2; // e.g., "detect_objects"
+  bytes json_payload = 3; // JSON payload for external API (e.g., contains OAuth 2 bearer token)
+  bool requires_oauth2 = 4; // Flag to indicate if OAuth 2 bearer token is implicitly expected in json_payload
+}
+
+message SimStep {
+  double duration_s = 1; // Duration to step the simulation
+  // Add specific simulation parameters like physics steps, render frames, etc.
+  // uint32 physics_steps = 2;
+}

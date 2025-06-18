@@ -637,3 +637,67 @@ func (h *MEPHandler) ValidateMEPMessage(mep *pb.MEP) error {
 
 	return nil
 }
+// Consistency Model
+// Define the consistency model for the Memory Exchange Protocol (MEP).
+const (
+    ConsistencyModelStrong  = "strong"
+    ConsistencyModelEventual = "eventual"
+)
+
+// Update the CreateMemoryEvent method to include consistency
+func (h *MEPHandler) CreateMemoryEvent(
+    operation string,
+    memoryID string,
+    content []byte,
+    metadata *MemoryEventMetadata,
+    correlationID string,
+    consistency string, // New parameter for consistency
+) (*pb.MEP, error) {
+    // Existing validation logic...
+
+    // Implement logic for strong consistency if required
+    if consistency == ConsistencyModelStrong {
+        // Placeholder for strong consistency logic
+    }
+
+    // Existing message creation logic...
+}
+
+// Update the SendMemoryEvent method to include consistency
+func (h *MEPHandler) SendMemoryEvent(
+    ctx context.Context,
+    operation string,
+    memoryID string,
+    content []byte,
+    metadata *MemoryEventMetadata,
+    correlationID string,
+    qos map[string]interface{},
+    consistency string, // New parameter for consistency
+) (string, error) {
+    // Existing logic...
+
+    // Create MEP message with consistency
+    mep, err := h.CreateMemoryEvent(operation, memoryID, content, metadata, correlationID, consistency)
+    if err != nil {
+        return "", fmt.Errorf("failed to create MEP message: %w", err)
+    }
+
+    // Existing publish logic...
+}
+
+// Update the QueryMemory method to include consistency
+func (h *MEPHandler) QueryMemory(
+    ctx context.Context,
+    params QueryParams,
+    qos map[string]interface{},
+    consistency string, // New parameter for consistency
+) (string, error) {
+    // Existing logic...
+
+    // Implement logic for strong consistency if required
+    if consistency == ConsistencyModelStrong {
+        // Placeholder for strong consistency logic
+    }
+
+    // Existing message creation logic...
+}

@@ -814,6 +814,7 @@ flowchart TB
     Encryption["Encryption<br>RSA/AES"]
     Principals["Principals<br>Users/Services"]
     Identity["Identity Management<br>Users/Services/Devices/Robots"]
+    HardwareSecurity["Hardware Security<br>TPM/HSM/Secure Elements"]
     
     %% Flow
     TrustProvider --- Authentication
@@ -821,6 +822,7 @@ flowchart TB
     TrustProvider --- Encryption
     TrustProvider --- Principals
     TrustProvider --- Identity
+    TrustProvider --- HardwareSecurity
     
     TrustProvider --> SecureTransport
     BaseTransport --> SecureTransport
@@ -846,8 +848,149 @@ flowchart TB
 graph TD
     NoSecurity["Level 0: None<br/>(No Security)"] --> Encryption["Level 1: Encryption<br/>(Message Privacy)"]
     Encryption --> Authentication["Level 2: Authentication<br/>(Identity Verification)"]
+#### 4.3.2. Hardware Security Integration
+
+ECPS v1.0 includes comprehensive hardware security integration to provide hardware-backed trust and attestation capabilities for robotic systems. This integration supports multiple hardware security modules and provides graceful fallback when hardware is unavailable.
+
+```mermaid
+flowchart TB
+    %% Hardware Security Architecture
+    HardwareSecurityManager["Hardware Security Manager"]
+    
+    %% Hardware Providers
+    TPMProvider["TPM 2.0 Provider"]
+    HSMProvider["HSM/PKCS#11 Provider"]
+    SecureElementProvider["Secure Element Provider"]
+    TEEProvider["TEE Provider"]
+    SoftwareFallback["Software Fallback Provider"]
+    
+    %% Hardware Security Features
+    DeviceIdentity["Hardware Device Identity"]
+    PlatformAttestation["Platform Attestation"]
+    SecureBoot["Secure Boot Validation"]
+    RuntimeIntegrity["Runtime Integrity"]
+    HardwareCrypto["Hardware Cryptography"]
+    
+    %% Integration with Trust Layer
+    TrustProvider["Trust Provider"]
+    SecureLogging["Secure Action Logging"]
+    
+    %% Connections
+    HardwareSecurityManager --> TPMProvider
+    HardwareSecurityManager --> HSMProvider
+    HardwareSecurityManager --> SecureElementProvider
+    HardwareSecurityManager --> TEEProvider
+    HardwareSecurityManager --> SoftwareFallback
+    
+    TPMProvider --> DeviceIdentity
+    TPMProvider --> PlatformAttestation
+    TPMProvider --> SecureBoot
+    HSMProvider --> HardwareCrypto
+    SecureElementProvider --> RuntimeIntegrity
+    
+    HardwareSecurityManager --> TrustProvider
+    HardwareSecurityManager --> SecureLogging
+    
+    %% Styling
+    classDef manager fill:#2a3950,stroke:#4671a5,color:#f5f5f5
+    classDef provider fill:#3a506b,stroke:#4671a5,color:#f5f5f5
+    classDef feature fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
+    classDef integration fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    
+    class HardwareSecurityManager manager
+    class TPMProvider,HSMProvider,SecureElementProvider,TEEProvider,SoftwareFallback provider
+    class DeviceIdentity,PlatformAttestation,SecureBoot,RuntimeIntegrity,HardwareCrypto feature
+    class TrustProvider,SecureLogging integration
+```
+
+**Hardware Security Providers:**
+
+* **TPM 2.0 Provider**: Utilizes Trusted Platform Module 2.0 for hardware-backed key generation, secure storage, and platform attestation. Provides cryptographic proof of device identity and boot integrity.
+
+* **HSM/PKCS#11 Provider**: Integrates with Hardware Security Modules via PKCS#11 interface for enterprise-grade cryptographic operations and key management.
+
+* **Secure Element Provider**: Supports embedded secure elements for IoT and edge devices, providing tamper-resistant security in constrained environments.
+
+* **TEE Provider**: Leverages Trusted Execution Environments (ARM TrustZone, Intel SGX) for secure computation and isolated key operations.
+
+* **Software Fallback Provider**: Provides software-based security when hardware modules are unavailable, ensuring system functionality while maintaining security best practices.
+
+**Hardware Security Features:**
+
+* **Hardware Device Identity**: Cryptographically unique device identifiers backed by hardware roots of trust, enabling secure device authentication and authorization.
+
+* **Platform Attestation**: Hardware-backed attestation reports that provide cryptographic proof of platform integrity, boot state, and runtime measurements.
+
+* **Secure Boot Validation**: Verification of boot process integrity using hardware-measured boot chains and trusted platform measurements.
+
+* **Runtime Integrity**: Continuous monitoring and attestation of system runtime state using hardware security features.
+
+* **Hardware Cryptography**: Hardware-accelerated cryptographic operations with keys that never leave the secure hardware boundary.
+
+#### 4.3.3. Versioned Action Logging
+
+ECPS v1.0 implements a comprehensive versioned logging system for action replay and audit trails. The logging system supports multiple format versions with backward compatibility and migration utilities.
+
+```mermaid
+flowchart LR
+    %% Log Versions
+    LegacyV10["Legacy V1.0<br>(No Header)"]
+    BasicV11["Basic V1.1<br>(Version Header)"]
+    EnhancedV20["Enhanced V2.0<br>(Metadata + Checksums)"]
+    AdvancedV21["Advanced V2.1<br>(Compression + Encryption)"]
+    
+    %% Migration Path
+    LegacyV10 -->|"Migration Utility"| BasicV11
+    BasicV11 -->|"Migration Utility"| EnhancedV20
+    EnhancedV20 -->|"Migration Utility"| AdvancedV21
+    
+    %% Log Components
+    LogHeader["Log Header<br>(Version, Metadata, Robot ID)"]
+    ActionMessages["Action Messages<br>(EAP Protocol Data)"]
+    Checksums["Integrity Checksums<br>(CRC32, SHA256)"]
+    Compression["Optional Compression<br>(gzip, lz4)"]
+    Encryption["Optional Encryption<br>(AES256)"]
+    
+    %% Advanced features
+    AdvancedV21 --> LogHeader
+    AdvancedV21 --> ActionMessages
+    AdvancedV21 --> Checksums
+    AdvancedV21 --> Compression
+    AdvancedV21 --> Encryption
+    
+    %% Hardware Integration
+    HardwareSigning["Hardware-Signed Actions"]
+    AttestationReports["Attestation Reports"]
+    
+    AdvancedV21 --> HardwareSigning
+    AdvancedV21 --> AttestationReports
+    
+    %% Styling
+    classDef version fill:#2a3950,stroke:#4671a5,color:#f5f5f5
+    classDef component fill:#3a506b,stroke:#4671a5,color:#f5f5f5
+    classDef security fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    
+    class LegacyV10,BasicV11,EnhancedV20,AdvancedV21 version
+    class LogHeader,ActionMessages,Checksums,Compression,Encryption component
+    class HardwareSigning,AttestationReports security
+```
+
+**Log Format Features:**
+
+* **Version V1.0 (Legacy)**: Simple binary format with message length prefixes, no header metadata.
+* **Version V1.1 (Basic)**: Adds version header for format identification and basic metadata.
+* **Version V2.0 (Enhanced)**: Rich metadata headers with robot ID, session ID, timestamps, and integrity checksums.
+* **Version V2.1 (Advanced)**: Adds optional compression and encryption support for secure and efficient storage.
+
+**Migration and Compatibility:**
+
+* **Backward Compatibility**: All versions can read legacy formats automatically.
+* **Migration Utilities**: Command-line tools for converting between log versions.
+* **Validation Tools**: Integrity checking and format validation for all log versions.
+* **Hardware Integration**: V2.1 supports hardware-signed actions and attestation reports.
     Authentication --> Authorization["Level 3: Authorization<br/>(Permission Control)"]
     Authorization --> Auditing["Level 4: Auditing<br/>(Compliance Tracking)"]
+    Auditing --> HardwareAttestation["Level 5: Hardware Attestation<br/>(Hardware-backed Trust)"]
     
     classDef none fill:#404040,stroke:#ffffff,color:#ffffff
     classDef enc fill:#505050,stroke:#ffffff,color:#ffffff

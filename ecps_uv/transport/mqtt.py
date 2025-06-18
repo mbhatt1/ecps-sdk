@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import uv
 import paho.mqtt.client as mqtt
+import paho.mqtt.properties as mqtt_properties
 
 from ecps_uv.transport.base import Transport
 
@@ -252,15 +253,52 @@ class MQTTTransport(Transport):
         # Serialize to JSON
         payload = json.dumps(message_dict)
         
-        # Publish
-        result = self.client.publish(topic, payload, qos=qos)
+        # Create MQTT 5 properties if needed
+        properties = None
+        if qos_params:
+            properties = mqtt_properties.Properties(mqtt_properties.PacketTypes.PUBLISH)
+            
+            # Add message expiry interval
+            if "expiry_interval" in qos_params:
+                properties.MessageExpiryInterval = qos_params["expiry_interval"]
+            
+            # Add content type
+            if "content_type" in qos_params:
+                properties.ContentType = qos_params["content_type"]
+            else:
+                properties.ContentType = "application/json"
+            
+            # Add user properties
+            if "user_properties" in qos_params:
+                properties.UserProperty = qos_params["user_properties"]
         
-        # Check if publish was successful
-        if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            logger.error(f"Failed to publish message to topic {topic}: {result.rc}")
-            raise Exception(f"Failed to publish message: {result.rc}")
+        # Publish with retry logic
+        max_retries = qos_params.get("retry_count", 3) if qos_params else 3
+        retry_delay = 0.1
         
-        logger.debug(f"Published message to topic {topic} with QoS {qos}")
+        for attempt in range(max_retries + 1):
+            try:
+                result = self.client.publish(topic, payload, qos=qos, properties=properties)
+                
+                # Wait for publish to complete for QoS > 0
+                if qos > 0:
+                    result.wait_for_publish(timeout=5.0)
+                
+                # Check if publish was successful
+                if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                    logger.debug(f"Published message to topic {topic} with QoS {qos}")
+                    return
+                else:
+                    raise Exception(f"Publish failed with code: {result.rc}")
+                    
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.warning(f"Publish attempt {attempt + 1} failed: {e}, retrying in {retry_delay}s")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error(f"Failed to publish message to topic {topic} after {max_retries + 1} attempts: {e}")
+                    raise
     
     async def subscribe(
         self,

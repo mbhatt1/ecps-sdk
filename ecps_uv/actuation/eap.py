@@ -22,6 +22,9 @@ except ImportError:
     # Dynamically generated protobuf modules might not be available at import time
     ecps_pb2 = None
 
+# Import log versioning system
+from .log_versioning import LogWriter, LogVersion, LogReader
+
 logger = logging.getLogger("ecps_uv.actuation.eap")
 
 
@@ -39,6 +42,9 @@ class EAPHandler:
         serializer: Any,
         telemetry: Optional[Any] = None,
         log_dir: Optional[str] = None,
+        robot_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        log_version: LogVersion = LogVersion.latest(),
     ):
         """
         Initialize the EAP handler.
@@ -48,18 +54,27 @@ class EAPHandler:
             serializer: Serializer to use for message encoding/decoding
             telemetry: Telemetry provider for observability (optional)
             log_dir: Directory for action log files (default: current directory)
+            robot_id: Robot identifier for log headers
+            session_id: Session identifier for log headers
+            log_version: Log format version to use
         """
         self.transport = transport
         self.serializer = serializer
         self.telemetry = telemetry
         self.log_dir = log_dir or os.getcwd()
+        self.robot_id = robot_id
+        self.session_id = session_id or str(uuid.uuid4())
+        self.log_version = log_version
         
         # Ensure log directory exists
         os.makedirs(self.log_dir, exist_ok=True)
-        
-        # Action log file handle
-        self.log_file = None
+
+        # Versioned log writer
+        self.log_writer: Optional[LogWriter] = None
         self.log_lock = asyncio.Lock()
+        
+        # Legacy support
+        self.log_file = None  # Deprecated, kept for backward compatibility
     
     def _get_eap_message_class(self):
         """Get the EAP message class from ecps_pb2."""
@@ -179,9 +194,74 @@ class EAPHandler:
         
         return eap_message
     
-    async def open_log_file(self, log_name: Optional[str] = None):
+    async def open_log_file(self, log_name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
         """
-        Open an action log file.
+        Open a versioned action log file.
+        
+        Args:
+            log_name: Name of the log file (default: "eap_{timestamp}.eaplog")
+            metadata: Additional metadata for the log header
+        """
+        async with self.log_lock:
+            # Close existing log writer if open
+            if self.log_writer:
+                await self.log_writer.close()
+            
+            # Generate log file name if not provided
+            if log_name is None:
+                timestamp = int(time.time())
+                log_name = f"eap_{timestamp}.eaplog"
+            
+            # Ensure .eaplog extension
+            if not log_name.endswith(".eaplog"):
+                log_name += ".eaplog"
+            
+            # Create log file path
+            log_path = os.path.join(self.log_dir, log_name)
+            
+            # Create versioned log writer
+            self.log_writer = LogWriter(
+                file_path=log_path,
+                version=self.log_version,
+                robot_id=self.robot_id,
+                session_id=self.session_id,
+                metadata=metadata
+            )
+            
+            await self.log_writer.open()
+            
+            logger.info(f"Opened versioned EAP action log file: {log_path} (v{self.log_version.value})")
+    
+    async def close_log_file(self):
+        """Close the action log file."""
+        async with self.log_lock:
+            if self.log_writer:
+                await self.log_writer.close()
+                self.log_writer = None
+                logger.info("Closed EAP action log file")
+    
+    async def log_action(self, eap_message):
+        """
+        Log an EAP action to the versioned .eaplog file.
+        
+        Args:
+            eap_message: EAP message to log
+        """
+        async with self.log_lock:
+            # Ensure log writer is open
+            if not self.log_writer:
+                await self.open_log_file()
+            
+            # Serialize message
+            serialized = self.serializer.serialize(eap_message, use_json=False)
+            
+            # Write message using versioned writer
+            await self.log_writer.write_message(serialized)
+    
+    # Legacy methods for backward compatibility
+    async def open_legacy_log_file(self, log_name: Optional[str] = None):
+        """
+        Open a legacy (unversioned) action log file.
         
         Args:
             log_name: Name of the log file (default: "eap_{timestamp}.eaplog")
@@ -194,7 +274,7 @@ class EAPHandler:
             # Generate log file name if not provided
             if log_name is None:
                 timestamp = int(time.time())
-                log_name = f"eap_{timestamp}.eaplog"
+                log_name = f"eap_legacy_{timestamp}.eaplog"
             
             # Ensure .eaplog extension
             if not log_name.endswith(".eaplog"):
@@ -204,19 +284,11 @@ class EAPHandler:
             log_path = os.path.join(self.log_dir, log_name)
             self.log_file = open(log_path, "ab")
             
-            logger.info(f"Opened EAP action log file: {log_path}")
+            logger.info(f"Opened legacy EAP action log file: {log_path}")
     
-    async def close_log_file(self):
-        """Close the action log file."""
-        async with self.log_lock:
-            if self.log_file and not self.log_file.closed:
-                self.log_file.close()
-                self.log_file = None
-                logger.info("Closed EAP action log file")
-    
-    async def log_action(self, eap_message):
+    async def log_action_legacy(self, eap_message):
         """
-        Log an EAP action to the .eaplog file.
+        Log an EAP action to a legacy .eaplog file (for backward compatibility).
         
         Args:
             eap_message: EAP message to log
@@ -224,12 +296,12 @@ class EAPHandler:
         async with self.log_lock:
             # Ensure log file is open
             if not self.log_file or self.log_file.closed:
-                await self.open_log_file()
+                await self.open_legacy_log_file()
             
             # Serialize message
             serialized = self.serializer.serialize(eap_message, use_json=False)
             
-            # Write message size and message
+            # Write message size and message (legacy format)
             self.log_file.write(len(serialized).to_bytes(4, byteorder="little"))
             self.log_file.write(serialized)
             self.log_file.flush()

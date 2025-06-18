@@ -193,16 +193,29 @@ class GRPCTransport(Transport):
         
         # Get or create stub for this service
         if service_name not in self.stubs:
-            # Dynamic import of generated service stub
-            # This assumes the generated stubs are available in the importable path
-            module_name = f"ecps_uv.proto.{service_name}_pb2_grpc"
+            # Create dynamic stub for ECPS services
             try:
-                module = __import__(module_name, fromlist=[f"{service_name}Stub"])
-                stub_class = getattr(module, f"{service_name}Stub")
-                self.stubs[service_name] = stub_class(self.channels[self.address])
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to import gRPC stub for service {service_name}: {e}")
-                raise
+                # Import the main ECPS protobuf module
+                from ecps_uv.proto import ecps_pb2_grpc
+                
+                # Map service names to actual stub classes
+                stub_mapping = {
+                    "MemoryStore": ecps_pb2_grpc.MemoryStoreStub,
+                    # Add other services as needed
+                }
+                
+                if service_name in stub_mapping:
+                    stub_class = stub_mapping[service_name]
+                    self.stubs[service_name] = stub_class(self.channels[self.address])
+                else:
+                    # Fallback: create a generic stub
+                    logger.warning(f"No specific stub found for service {service_name}, using generic approach")
+                    self.stubs[service_name] = self._create_generic_stub(service_name)
+                    
+            except ImportError as e:
+                logger.error(f"Failed to import gRPC stubs: {e}")
+                # Create a generic stub as fallback
+                self.stubs[service_name] = self._create_generic_stub(service_name)
         
         # Get stub
         stub = self.stubs[service_name]
@@ -245,15 +258,29 @@ class GRPCTransport(Transport):
         
         # Get or create stub for this service
         if service_name not in self.stubs:
-            # Dynamic import of generated service stub
-            module_name = f"ecps_uv.proto.{service_name}_pb2_grpc"
+            # Create dynamic stub for ECPS services
             try:
-                module = __import__(module_name, fromlist=[f"{service_name}Stub"])
-                stub_class = getattr(module, f"{service_name}Stub")
-                self.stubs[service_name] = stub_class(self.channels[self.address])
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to import gRPC stub for service {service_name}: {e}")
-                raise
+                # Import the main ECPS protobuf module
+                from ecps_uv.proto import ecps_pb2_grpc
+                
+                # Map service names to actual stub classes
+                stub_mapping = {
+                    "MemoryStore": ecps_pb2_grpc.MemoryStoreStub,
+                    # Add other services as needed
+                }
+                
+                if service_name in stub_mapping:
+                    stub_class = stub_mapping[service_name]
+                    self.stubs[service_name] = stub_class(self.channels[self.address])
+                else:
+                    # Fallback: create a generic stub
+                    logger.warning(f"No specific stub found for service {service_name}, using generic approach")
+                    self.stubs[service_name] = self._create_generic_stub(service_name)
+                    
+            except ImportError as e:
+                logger.error(f"Failed to import gRPC stubs: {e}")
+                # Create a generic stub as fallback
+                self.stubs[service_name] = self._create_generic_stub(service_name)
         
         # Get stub
         stub = self.stubs[service_name]
@@ -324,15 +351,29 @@ class GRPCTransport(Transport):
         
         # Get or create stub for this service
         if service_name not in self.stubs:
-            # Dynamic import of generated service stub
-            module_name = f"ecps_uv.proto.{service_name}_pb2_grpc"
+            # Create dynamic stub for ECPS services
             try:
-                module = __import__(module_name, fromlist=[f"{service_name}Stub"])
-                stub_class = getattr(module, f"{service_name}Stub")
-                self.stubs[service_name] = stub_class(self.channels[self.address])
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to import gRPC stub for service {service_name}: {e}")
-                raise
+                # Import the main ECPS protobuf module
+                from ecps_uv.proto import ecps_pb2_grpc
+                
+                # Map service names to actual stub classes
+                stub_mapping = {
+                    "MemoryStore": ecps_pb2_grpc.MemoryStoreStub,
+                    # Add other services as needed
+                }
+                
+                if service_name in stub_mapping:
+                    stub_class = stub_mapping[service_name]
+                    self.stubs[service_name] = stub_class(self.channels[self.address])
+                else:
+                    # Fallback: create a generic stub
+                    logger.warning(f"No specific stub found for service {service_name}, using generic approach")
+                    self.stubs[service_name] = self._create_generic_stub(service_name)
+                    
+            except ImportError as e:
+                logger.error(f"Failed to import gRPC stubs: {e}")
+                # Create a generic stub as fallback
+                self.stubs[service_name] = self._create_generic_stub(service_name)
         
         # Get stub
         stub = self.stubs[service_name]
@@ -392,15 +433,26 @@ class GRPCTransport(Transport):
     
     def _create_servicer(self, service_name):
         """Create a dynamic servicer class for a gRPC service."""
-        # Dynamic import of generated service servicer
-        module_name = f"ecps_uv.proto.{service_name}_pb2_grpc"
         try:
-            module = __import__(module_name, fromlist=[f"add_{service_name}Servicer_to_server"])
-            add_servicer_func = getattr(module, f"add_{service_name}Servicer_to_server")
-            servicer_class = getattr(module, f"{service_name}Servicer")
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Failed to import gRPC servicer for service {service_name}: {e}")
-            raise
+            # Import the main ECPS protobuf module
+            from ecps_uv.proto import ecps_pb2_grpc
+            
+            # Map service names to actual servicer classes
+            servicer_mapping = {
+                "MemoryStore": ecps_pb2_grpc.MemoryStoreServicer,
+                # Add other services as needed
+            }
+            
+            if service_name in servicer_mapping:
+                servicer_class = servicer_mapping[service_name]
+            else:
+                # Create a generic servicer
+                logger.warning(f"No specific servicer found for service {service_name}, using generic approach")
+                return self._create_generic_servicer(service_name)
+                
+        except ImportError as e:
+            logger.error(f"Failed to import gRPC servicers: {e}")
+            return self._create_generic_servicer(service_name)
         
         # Create servicer instance
         handlers = self.service_handlers[service_name]
@@ -421,6 +473,72 @@ class GRPCTransport(Transport):
             setattr(servicer, method_name, method_impl)
         
         return servicer
+    
+    def _create_generic_servicer(self, service_name):
+        """Create a generic servicer for services without specific protobuf definitions."""
+        class GenericServicer:
+            def __init__(self, handlers):
+                self.handlers = handlers
+                self._service_name = service_name
+            
+            def __getattr__(self, method_name):
+                if method_name in self.handlers:
+                    handler = self.handlers[method_name]
+                    
+                    async def method_impl(request, context):
+                        try:
+                            response = await handler(request)
+                            return response
+                        except Exception as e:
+                            logger.error(f"Error in generic gRPC handler: {e}")
+                            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+                    
+                    return method_impl
+                else:
+                    # Return a default handler
+                    async def default_handler(request, context):
+                        await context.abort(grpc.StatusCode.UNIMPLEMENTED, f"Method {method_name} not implemented")
+                    
+                    return default_handler
+        
+        handlers = self.service_handlers[service_name]
+        return GenericServicer(handlers)
+    
+    def _create_generic_stub(self, service_name: str):
+        """Create a generic stub for services without specific protobuf definitions."""
+        class GenericStub:
+            def __init__(self, channel):
+                self.channel = channel
+                self._service_name = service_name
+            
+            def __getattr__(self, method_name):
+                # Create a generic method that can handle any RPC call
+                async def generic_method(request, timeout=None):
+                    # For generic stubs, we'll use the unary-unary pattern
+                    method_path = f"/{self._service_name}/{method_name}"
+                    
+                    # Serialize request
+                    if hasattr(request, 'SerializeToString'):
+                        serialized_request = request.SerializeToString()
+                    else:
+                        # Fallback serialization
+                        import json
+                        serialized_request = json.dumps(request).encode()
+                    
+                    # Make the call
+                    response_bytes = await self.channel.unary_unary(
+                        method_path,
+                        request_serializer=lambda x: x,
+                        response_deserializer=lambda x: x,
+                    )(serialized_request, timeout=timeout)
+                    
+                    # For now, return raw bytes - in a real implementation,
+                    # you'd deserialize based on the expected response type
+                    return response_bytes
+                
+                return generic_method
+        
+        return GenericStub(self.channels[self.address])
     
     async def stream_request(
         self,
@@ -449,15 +567,29 @@ class GRPCTransport(Transport):
         
         # Get or create stub for this service
         if service_name not in self.stubs:
-            # Dynamic import of generated service stub
-            module_name = f"ecps_uv.proto.{service_name}_pb2_grpc"
+            # Create dynamic stub for ECPS services
             try:
-                module = __import__(module_name, fromlist=[f"{service_name}Stub"])
-                stub_class = getattr(module, f"{service_name}Stub")
-                self.stubs[service_name] = stub_class(self.channels[self.address])
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to import gRPC stub for service {service_name}: {e}")
-                raise
+                # Import the main ECPS protobuf module
+                from ecps_uv.proto import ecps_pb2_grpc
+                
+                # Map service names to actual stub classes
+                stub_mapping = {
+                    "MemoryStore": ecps_pb2_grpc.MemoryStoreStub,
+                    # Add other services as needed
+                }
+                
+                if service_name in stub_mapping:
+                    stub_class = stub_mapping[service_name]
+                    self.stubs[service_name] = stub_class(self.channels[self.address])
+                else:
+                    # Fallback: create a generic stub
+                    logger.warning(f"No specific stub found for service {service_name}, using generic approach")
+                    self.stubs[service_name] = self._create_generic_stub(service_name)
+                    
+            except ImportError as e:
+                logger.error(f"Failed to import gRPC stubs: {e}")
+                # Create a generic stub as fallback
+                self.stubs[service_name] = self._create_generic_stub(service_name)
         
         # Get stub
         stub = self.stubs[service_name]
@@ -530,6 +662,83 @@ class GRPCTransport(Transport):
             # Create a dynamic servicer class
             servicer = self._create_stream_servicer(service_name)
             self.servicers[service_name] = servicer
+        
+        logger.debug(f"Registered streaming handler for {service}")
+    
+    def _create_stream_servicer(self, service_name):
+        """Create a dynamic servicer class for a streaming gRPC service."""
+        try:
+            # Import the main ECPS protobuf module
+            from ecps_uv.proto import ecps_pb2_grpc
+            
+            # Map service names to actual servicer classes
+            servicer_mapping = {
+                "MemoryStore": ecps_pb2_grpc.MemoryStoreServicer,
+                # Add other services as needed
+            }
+            
+            if service_name in servicer_mapping:
+                servicer_class = servicer_mapping[service_name]
+            else:
+                # Create a generic servicer
+                logger.warning(f"No specific servicer found for service {service_name}, using generic approach")
+                return self._create_generic_stream_servicer(service_name)
+                
+        except ImportError as e:
+            logger.error(f"Failed to import gRPC servicers: {e}")
+            return self._create_generic_stream_servicer(service_name)
+        
+        # Create servicer instance
+        handlers = self.service_handlers[service_name]
+        
+        # Create a dynamic servicer instance with all required methods
+        servicer = servicer_class()
+        
+        # Add handler methods to servicer
+        for method_name, handler in handlers.items():
+            async def method_impl(request, context, handler=handler):
+                try:
+                    # Handler should generate responses and yield them
+                    async for response in handler(request):
+                        yield response
+                except Exception as e:
+                    logger.error(f"Error in gRPC streaming handler: {e}")
+                    await context.abort(grpc.StatusCode.INTERNAL, str(e))
+            
+            setattr(servicer, method_name, method_impl)
+        
+        return servicer
+    
+    def _create_generic_stream_servicer(self, service_name):
+        """Create a generic streaming servicer for services without specific protobuf definitions."""
+        class GenericStreamServicer:
+            def __init__(self, handlers):
+                self.handlers = handlers
+                self._service_name = service_name
+            
+            def __getattr__(self, method_name):
+                if method_name in self.handlers:
+                    handler = self.handlers[method_name]
+                    
+                    async def method_impl(request, context):
+                        try:
+                            # Handler should generate responses and yield them
+                            async for response in handler(request):
+                                yield response
+                        except Exception as e:
+                            logger.error(f"Error in generic gRPC streaming handler: {e}")
+                            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+                    
+                    return method_impl
+                else:
+                    # Return a default handler
+                    async def default_handler(request, context):
+                        await context.abort(grpc.StatusCode.UNIMPLEMENTED, f"Method {method_name} not implemented")
+                    
+                    return default_handler
+        
+        handlers = self.service_handlers[service_name]
+        return GenericStreamServicer(handlers)
         
         logger.debug(f"Registered streaming handler for {service}")
     

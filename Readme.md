@@ -37,8 +37,18 @@ This SDK implements the full ECPS v1.0 specification using Python with UV for hi
   - Authentication via JWT and certificate-based mechanisms
   - Authorization with role-based access control (RBAC)
   - Message encryption and integrity verification
+  - **Hardware Security Integration**: TPM 2.0, HSM (PKCS#11), secure elements
+  - **Hardware Attestation**: Device identity and platform attestation
+  - **Secure Boot Validation**: Boot integrity verification
   - Graduated security levels for different deployment scenarios
   - Transparent security wrapper for all protocol layers
+
+- **Advanced Logging**:
+  - **Versioned Log Format**: Support for multiple log versions (V1.0-V2.1)
+  - **Backward Compatibility**: Read legacy log formats seamlessly
+  - **Migration Utilities**: Convert between log versions with full data preservation
+  - **Rich Metadata**: Comprehensive log headers with robot ID, session ID, metadata
+  - **Command-Line Tools**: Complete log management utility (`eaplog_tool.py`)
 
 ## Installation
 
@@ -68,6 +78,10 @@ pip install -e .
 - NumPy
 - PyJWT
 - cryptography
+- **Hardware Security (Optional)**:
+  - python-tss (TPM 2.0 integration)
+  - PyKCS11 (HSM/PKCS#11 support)
+  - tpm2-tools (TPM command-line utilities)
 
 ## Quick Start
 
@@ -160,6 +174,91 @@ For complete examples, check the `examples/` directory. In particular:
 
 - `examples/ecps_demo.py`: Demonstrates basic functionality
 - `examples/secure_ecps.py`: Shows how to use the trust layer for secure communication
+- `examples/hardware_security_demo.py`: **NEW** - Hardware security integration showcase
+- `examples/identity_management_demo.py`: Identity and principal management
+- `examples/trust_decorators_demo.py`: Trust decorators and security levels
+
+### Hardware Security Example
+
+```python
+from ecps_uv.trust.hardware_security import HardwareSecurityManager
+import asyncio
+
+async def hardware_security_demo():
+    # Initialize hardware security manager
+    manager = HardwareSecurityManager()
+    await manager.initialize()
+    
+    # Get active provider (TPM, HSM, or software fallback)
+    provider = manager.get_active_provider()
+    print(f"Using: {provider.get_hardware_type()}")
+    
+    # Generate hardware-backed device identity
+    identity = await provider.generate_key("robot_key")
+    print(f"Device ID: {identity.device_id}")
+    
+    # Create hardware attestation
+    nonce = secrets.token_bytes(32)
+    report = await provider.create_attestation(nonce, "device_identity")
+    print(f"Attestation created for device: {report.device_id}")
+    
+    # Verify attestation
+    is_valid = await provider.verify_attestation(report)
+    print(f"Attestation valid: {is_valid}")
+
+asyncio.run(hardware_security_demo())
+```
+
+### Log Versioning Example
+
+```python
+from ecps_uv.actuation.log_versioning import LogWriter, LogReader, LogMigrator
+import asyncio
+
+async def log_versioning_demo():
+    # Create versioned log with metadata
+    writer = LogWriter(
+        "robot_mission.eaplog",
+        version=LogVersion.V2_1,
+        robot_id="robot_001",
+        session_id="mission_123",
+        metadata={"location": "warehouse_a", "mission": "inventory"}
+    )
+    
+    await writer.open()
+    
+    # Log actions with rich metadata
+    action_data = {
+        "action": "move_to_position",
+        "target": {"x": 1.5, "y": 2.0, "z": 0.0},
+        "timestamp": time.time()
+    }
+    await writer.write_message(json.dumps(action_data).encode())
+    await writer.close()
+    
+    # Read log with version detection
+    reader = LogReader("robot_mission.eaplog")
+    await reader.open()
+    
+    info = await reader.get_info()
+    print(f"Log version: {info['version']}")
+    print(f"Robot ID: {info['robot_id']}")
+    
+    messages = await reader.read_messages()
+    print(f"Found {len(messages)} actions")
+    await reader.close()
+    
+    # Migrate legacy logs to latest version
+    migrator = LogMigrator()
+    await migrator.migrate_file(
+        "legacy.eaplog",
+        "updated.eaplog",
+        LogVersion.V2_1,
+        robot_id="migrated_robot"
+    )
+
+asyncio.run(log_versioning_demo())
+```
 
 ## Architecture
 
@@ -191,29 +290,82 @@ ecps_uv/
 │   └── mep.py           # Memory Exchange Protocol
 ├── actuation/           # L7: Actuation
 │   ├── __init__.py
-│   └── eap.py           # Embodied Action Protocol
-└── trust/               # Cross-cutting: Security
+│   ├── eap.py           # Embodied Action Protocol
+│   └── log_versioning.py # **NEW** Versioned logging system
+├── trust/               # Cross-cutting: Security
+│   ├── __init__.py
+│   ├── trust.py         # Trust provider and RBAC
+│   ├── secure_transport.py # Secure message wrapper
+│   ├── hardware_security.py # **NEW** Hardware security integration
+│   ├── identity.py      # Identity management
+│   └── decorators.py    # Security decorators
+├── tools/               # **NEW** Command-line utilities
+│   ├── __init__.py
+│   └── eaplog_tool.py   # Log management utility
+└── coordination/        # L6: Coordination layer
     ├── __init__.py
-    ├── trust.py         # Trust provider and RBAC
-    └── secure_transport.py # Secure message wrapper
+    └── consensus.py     # Consensus algorithms
+```
+
+### Go Implementation
+
+The Go implementation (`ecps-go/`) provides full feature parity:
+
+```
+ecps-go/
+├── go.mod               # Go module definition
+├── pkg/                 # Go packages
+│   ├── actuation/       # L7: Actuation layer
+│   │   ├── eap.go       # Embodied Action Protocol
+│   │   └── log_versioning.go # **NEW** Versioned logging
+│   ├── trust/           # Security layer
+│   │   ├── trust.go     # Trust provider
+│   │   ├── identity.go  # Identity management
+│   │   └── hardware_security.go # **NEW** Hardware security
+│   ├── cognition/       # L6: Cognition layer
+│   ├── coordination/    # L6: Coordination layer
+│   ├── perception/      # L5: Perception layer
+│   ├── observability/   # L4: Observability layer
+│   ├── serialization/   # L3: Serialization layer
+│   ├── transport/       # L2: Transport layer
+│   └── core/           # Core interfaces
+├── cmd/                # **NEW** Command-line tools
+│   └── eaplog/         # Log management utility
+├── examples/           # Go examples
+│   ├── hardware_security_demo/ # **NEW** Hardware security demo
+│   ├── basic_client/
+│   ├── basic_server/
+│   └── secure_communication/
+└── tests/              # Go tests
+    ├── log_versioning_test.go # **NEW** Log versioning tests
+    └── hardware_security_test.go # **NEW** Hardware security tests
 ```
 
 ## Roadmap
 
 The ECPS UV SDK is under active development. Here's our roadmap for future enhancements:
 
+### Recently Completed ✅
+- ✅ **Hardware Security Integration**: TPM 2.0, HSM (PKCS#11), secure elements
+- ✅ **Versioned Logging System**: Multi-version log support (V1.0-V2.1)
+- ✅ **Command-Line Tools**: Complete log management utilities
+- ✅ **Go-Python Parity**: Full feature parity between implementations
+- ✅ **Hardware Attestation**: Device identity and platform attestation
+- ✅ **Migration Utilities**: Backward compatibility and log conversion
+
 ### Near-term (Q3 2025)
-- Add additional transport implementations (gRPC, MQTT)
-- Enhance trust layer with hardware security module (HSM) integration
+- Add additional transport implementations (WebSocket, ZeroMQ)
+- Enhanced hardware security provider implementations
 - Improve documentation and add comprehensive API references
 - Add performance benchmarking tools and profiles
+- Advanced log compression and encryption options
 
 ### Mid-term (Q4 2025)
 - Implement transport auto-discovery and failover
 - Add zero-copy optimizations for tensor operations
 - Create a visualization tool for ECPS message flows
 - Implement batch operations for improved efficiency
-- Add support for additional serialization formats
+- Integration with external key management systems (AWS KMS, Azure Key Vault)
 
 ### Long-term (2026)
 - Support for federated trust models across multiple devices

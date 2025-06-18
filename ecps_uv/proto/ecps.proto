@@ -18,13 +18,44 @@ message MCP {
 }
 
 // --- L5 Perception data: Latent Tensor Protocol (LTP v0.9) ---
+message LTPFrameHeader {
+  uint32 version = 1;           // LTP protocol version (current: 1)
+  uint32 message_type = 2;      // Message type (1=DATA, 2=ACK, 3=CHUNK_START, 4=CHUNK_END)
+  uint32 payload_length = 3;    // Length of payload in bytes
+  uint32 sequence_number = 4;   // Sequence number for ordering
+  uint32 total_chunks = 5;      // Total number of chunks (0 if not chunked)
+  uint32 chunk_index = 6;       // Current chunk index (0-based)
+  bytes checksum = 7;           // CRC32 checksum of payload
+  map<string, string> metadata = 8; // Additional metadata
+}
+
 message LTP {
-  string  spec = "ltp/0.9"; // MUST take the form "ltp/0.9"
-  bytes   tensor_zstd = 1;   // zstd-compressed ND array
-  repeated uint32 shape = 2; // e.g. [B,L,D]
-  string  dtype = 3;        // "f32" | "f16" | "u8" | ...
-  string  frame_id = 4;     // Reference coordinate frame
-  uint64  timestamp_ns = 5; // Nanoseconds since Unix epoch
+  string  spec = 1;             // MUST take the form "ltp/0.9"
+  LTPFrameHeader header = 2;    // Frame header for wire protocol
+  bytes   tensor_zstd = 3;      // zstd-compressed ND array
+  repeated uint32 shape = 4;    // e.g. [B,L,D]
+  string  dtype = 5;            // "f32" | "f16" | "u8" | "i8" | "i16" | "i32" | "i64" | "u16" | "u32" | "u64" | "f64" | "bool"
+  string  frame_id = 6;         // Reference coordinate frame
+  uint64  timestamp_ns = 7;     // Nanoseconds since Unix epoch
+  uint32  compression_level = 8; // zstd compression level used (1-22)
+  uint64  original_size = 9;    // Original tensor size before compression
+  map<string, string> attributes = 10; // Additional attributes
+}
+
+// LTP chunk for large tensor transmission
+message LTPChunk {
+  LTPFrameHeader header = 1;    // Frame header
+  bytes chunk_data = 2;         // Chunk of tensor data
+  bool is_final = 3;            // True if this is the final chunk
+}
+
+// LTP acknowledgment message
+message LTPAck {
+  LTPFrameHeader header = 1;    // Frame header
+  bool success = 2;             // Whether operation was successful
+  string message = 3;           // Status message
+  uint32 received_chunks = 4;   // Number of chunks received
+  repeated uint32 missing_chunks = 5; // List of missing chunk indices
 }
 
 // --- L6 Cognition: Memory Exchange Protocol (MEP v1.0) ---

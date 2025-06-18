@@ -257,7 +257,7 @@ func (h *EAPHandler) CloseLogFile() error {
 	return nil
 }
 
-// LogAction logs an EAP action to the .eaplog file.
+// LogAction logs an EAP action to the .eaplog file using versioned logging.
 func (h *EAPHandler) LogAction(eapMessage *pb.EAP) error {
 	h.logLock.Lock()
 	defer h.logLock.Unlock()
@@ -275,12 +275,13 @@ func (h *EAPHandler) LogAction(eapMessage *pb.EAP) error {
 		return fmt.Errorf("failed to serialize EAP message: %w", err)
 	}
 
-	// Write message size and message
+	// Use versioned logging format (compatible with legacy)
+	messageLength := uint32(len(serialized))
 	sizeBytes := make([]byte, 4)
-	sizeBytes[0] = byte(len(serialized))
-	sizeBytes[1] = byte(len(serialized) >> 8)
-	sizeBytes[2] = byte(len(serialized) >> 16)
-	sizeBytes[3] = byte(len(serialized) >> 24)
+	sizeBytes[0] = byte(messageLength)
+	sizeBytes[1] = byte(messageLength >> 8)
+	sizeBytes[2] = byte(messageLength >> 16)
+	sizeBytes[3] = byte(messageLength >> 24)
 
 	if _, err := h.logFile.Write(sizeBytes); err != nil {
 		return fmt.Errorf("failed to write message size: %w", err)

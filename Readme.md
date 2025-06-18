@@ -896,6 +896,12 @@ The ECPS UV SDK is under active development. Here's our roadmap for future enhan
 - Improve documentation and add comprehensive API references
 - Add performance benchmarking tools and profiles
 - Advanced log compression and encryption options
+- **🤖 TODO: Agentic Framework Integration**: Integrate ECPS-UV with major agentic frameworks
+  - LangChain integration for agent-robot communication
+  - AutoGen framework integration for multi-agent coordination
+  - CrewAI integration for robot swarm management
+  - OpenAI Assistants API integration for cognitive capabilities
+  - Anthropic Claude integration for advanced reasoning
 
 ### Mid-term (Q4 2025)
 - Implement transport auto-discovery and failover

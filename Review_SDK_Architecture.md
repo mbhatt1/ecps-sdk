@@ -204,11 +204,18 @@ The overall architecture of the SDK is internally consistent and aligns well wit
 10. ✅ **A2A Coordination**: Multi-agent coordination layer completed
 
 ### Remaining Minor Enhancements (5% remaining)
-1. **Additional Hardware Providers**: Support for more HSM vendors
-2. **Advanced Compression**: Additional compression algorithms for logs
-3. **Extended Metrics**: More detailed performance and security metrics
-4. **Additional Examples**: More real-world use case examples
-5. **Performance Optimization**: Further micro-optimizations
+1. **🤖 Agentic Framework Integration**:
+   - **TODO: LangChain Integration**: Native ECPS transport for LangChain agents
+   - **TODO: AutoGen Framework**: Multi-agent coordination with ECPS messaging
+   - **TODO: CrewAI Integration**: Robot swarm management through CrewAI
+   - **TODO: OpenAI Assistants API**: Direct integration for cognitive capabilities
+   - **TODO: Anthropic Claude**: Advanced reasoning integration
+   - **TODO: Local LLM Support**: Ollama, LM Studio, and other local frameworks
+2. **Additional Hardware Providers**: Support for more HSM vendors
+3. **Advanced Compression**: Additional compression algorithms for logs
+4. **Extended Metrics**: More detailed performance and security metrics
+5. **Additional Examples**: More real-world use case examples
+6. **Performance Optimization**: Further micro-optimizations
 
 ## Conclusion
 

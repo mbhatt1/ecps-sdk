@@ -145,16 +145,24 @@ Key features implemented:
 ## Future Work
 
 ### Short-term Priorities
-1. **Complete Transport Implementations**: 
+1. **🤖 Agentic Framework Integration**:
+   - **TODO: LangChain Integration**: Native ECPS transport for LangChain agents
+   - **TODO: AutoGen Framework**: Multi-agent coordination with ECPS messaging
+   - **TODO: CrewAI Integration**: Robot swarm management through CrewAI
+   - **TODO: OpenAI Assistants API**: Direct integration for cognitive capabilities
+   - **TODO: Anthropic Claude**: Advanced reasoning integration
+   - **TODO: Local LLM Support**: Ollama, LM Studio, and other local model frameworks
+
+2. **Complete Transport Implementations**:
    - Implement gRPC and MQTT transports
    - Add transport auto-discovery and failover
 
-2. **Performance Optimizations**:
+3. **Performance Optimizations**:
    - Memory pool for tensor allocation
    - Zero-copy serialization where possible
    - Batch operations for efficiency
 
-3. **Extended Documentation**:
+4. **Extended Documentation**:
    - Complete API documentation
    - More examples for common use cases
    - Tutorial documentation

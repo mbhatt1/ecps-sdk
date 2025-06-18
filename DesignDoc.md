@@ -796,7 +796,7 @@ flowchart LR
 The ECPS Trust Layer provides a comprehensive security framework that can be applied transparently to all protocol layers in the stack. It is implemented as a cross-cutting concern that wraps the transport layer but influences all layers above it.
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#4a90e2', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#7bb3f0', 'lineColor': '#ffffff', 'secondaryColor': '#5ba0f2', 'tertiaryColor': '#357abd', 'background': '#1e1e1e', 'mainBkg': '#2d2d2d', 'secondBkg': '#3d3d3d', 'tertiaryColor': '#4d4d4d'}}}%%
 flowchart TB
     %% Trust Layer Integration
     TrustProvider["Trust Provider"]
@@ -823,11 +823,11 @@ flowchart TB
     SecureTransport --> Protocol
     
     %% Styling
-    classDef provider fill:#2a3950,stroke:#4671a5,color:#f5f5f5
-    classDef transport fill:#3a506b,stroke:#4671a5,color:#f5f5f5
-    classDef component fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
-    classDef protocol fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
-    classDef identity fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    classDef provider fill:#4a90e2,stroke:#7bb3f0,color:#ffffff
+    classDef transport fill:#5ba0f2,stroke:#7bb3f0,color:#ffffff
+    classDef component fill:#357abd,stroke:#7bb3f0,color:#ffffff
+    classDef protocol fill:#6bb6ff,stroke:#7bb3f0,color:#ffffff
+    classDef identity fill:#ff6b6b,stroke:#ff9999,color:#ffffff
     
     class TrustProvider provider
     class SecureTransport,BaseTransport transport
@@ -839,18 +839,18 @@ flowchart TB
 * **Trust Levels**: The trust layer operates at distinct security levels:
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#4a90e2', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#7bb3f0', 'lineColor': '#ffffff', 'secondaryColor': '#5ba0f2', 'tertiaryColor': '#357abd', 'background': '#1e1e1e', 'mainBkg': '#2d2d2d', 'secondBkg': '#3d3d3d', 'tertiaryColor': '#4d4d4d'}}}%%
 graph TD
     NoSecurity["Level 0: None<br/>(No Security)"] --> Encryption["Level 1: Encryption<br/>(Message Privacy)"]
     Encryption --> Authentication["Level 2: Authentication<br/>(Identity Verification)"]
     Authentication --> Authorization["Level 3: Authorization<br/>(Permission Control)"]
     Authorization --> Auditing["Level 4: Auditing<br/>(Compliance Tracking)"]
     
-    classDef none fill:#3a506b,stroke:#4671a5,color:#f5f5f5
-    classDef enc fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
-    classDef auth fill:#2a3950,stroke:#4671a5,color:#f5f5f5
-    classDef authz fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
-    classDef audit fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    classDef none fill:#666666,stroke:#999999,color:#ffffff
+    classDef enc fill:#4a90e2,stroke:#7bb3f0,color:#ffffff
+    classDef auth fill:#5ba0f2,stroke:#7bb3f0,color:#ffffff
+    classDef authz fill:#6bb6ff,stroke:#7bb3f0,color:#ffffff
+    classDef audit fill:#ff6b6b,stroke:#ff9999,color:#ffffff
     
     class NoSecurity none
     class Encryption enc
@@ -886,7 +886,7 @@ graph TD
 * **Identity Management**: The trust layer includes a comprehensive identity system:
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#4a90e2', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#7bb3f0', 'lineColor': '#ffffff', 'secondaryColor': '#5ba0f2', 'tertiaryColor': '#357abd', 'background': '#1e1e1e', 'mainBkg': '#2d2d2d', 'secondBkg': '#3d3d3d', 'tertiaryColor': '#4d4d4d'}}}%%
 classDiagram
     IdentityStore "1" --> "*" Identity : manages
     IdentityProvider --> IdentityStore : uses
@@ -952,12 +952,12 @@ classDiagram
     }
     
     %% Apply styling
-    classDef identityStoreClass fill:#2a3950,stroke:#4671a5,color:#f5f5f5
-    classDef identityProviderClass fill:#3a506b,stroke:#4671a5,color:#f5f5f5
-    classDef identityClass fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
-    classDef identityTypeClass fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
-    classDef trustProviderClass fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
-    classDef principalClass fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
+    classDef identityStoreClass fill:#4a90e2,stroke:#7bb3f0,color:#ffffff
+    classDef identityProviderClass fill:#5ba0f2,stroke:#7bb3f0,color:#ffffff
+    classDef identityClass fill:#ff6b6b,stroke:#ff9999,color:#ffffff
+    classDef identityTypeClass fill:#ff6b6b,stroke:#ff9999,color:#ffffff
+    classDef trustProviderClass fill:#357abd,stroke:#7bb3f0,color:#ffffff
+    classDef principalClass fill:#6bb6ff,stroke:#7bb3f0,color:#ffffff
     
     class IdentityStore identityStoreClass
     class IdentityProvider identityProviderClass

@@ -653,6 +653,148 @@ async def log_versioning_demo():
     )
 
 asyncio.run(log_versioning_demo())
+### Go Hardware Security Example
+
+```go
+package main
+
+import (
+    "crypto/rand"
+    "log"
+    
+    "github.com/ecps/ecps-go/pkg/trust"
+)
+
+func main() {
+    // Initialize hardware security manager
+    manager := trust.NewHardwareSecurityManager()
+    if err := manager.Initialize(); err != nil {
+        log.Fatalf("Failed to initialize hardware security: %v", err)
+    }
+    defer manager.Cleanup()
+    
+    // Get active provider (TPM, HSM, or software fallback)
+    provider := manager.GetActiveProvider()
+    log.Printf("Using: %s", provider.GetHardwareType())
+    
+    // Generate hardware-backed device identity
+    identity, err := provider.GenerateKey("robot_key")
+    if err != nil {
+        log.Fatalf("Failed to generate device identity: %v", err)
+    }
+    log.Printf("Device ID: %s", identity.DeviceID)
+    
+    // Create hardware attestation
+    nonce := make([]byte, 32)
+    rand.Read(nonce)
+    
+    report, err := provider.CreateAttestation(nonce, trust.AttestationDeviceIdentity)
+    if err != nil {
+        log.Fatalf("Failed to create attestation: %v", err)
+    }
+    log.Printf("Attestation created for device: %s", report.DeviceID)
+    
+    // Verify attestation
+    if err := provider.VerifyAttestation(report); err != nil {
+        log.Fatalf("Attestation verification failed: %v", err)
+    }
+    log.Println("✓ Attestation verification successful")
+}
+```
+
+### Go Log Versioning Example
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "log"
+    "time"
+    
+    "github.com/ecps/ecps-go/pkg/actuation"
+)
+
+func main() {
+    // Create versioned log with metadata
+    robotID := "robot_001"
+    sessionID := "mission_123"
+    metadata := map[string]interface{}{
+        "location": "warehouse_a",
+        "mission":  "inventory_check",
+    }
+    
+    writer := actuation.NewLogWriter(
+        "robot_mission.eaplog",
+        actuation.LogVersionV21,
+        &robotID,
+        &sessionID,
+        metadata,
+    )
+    
+    if err := writer.Open(); err != nil {
+        log.Fatalf("Failed to create log: %v", err)
+    }
+    defer writer.Close()
+    
+    // Log actions with rich metadata
+    for i := 0; i < 5; i++ {
+        actionData := map[string]interface{}{
+            "action_id":  i,
+            "action":     "move_to_position",
+            "target":     map[string]float64{"x": 1.5, "y": 2.0, "z": 0.0},
+            "timestamp":  time.Now().Unix(),
+        }
+        
+        actionJSON, err := json.Marshal(actionData)
+        if err != nil {
+            log.Fatalf("Failed to marshal action: %v", err)
+        }
+        
+        if err := writer.WriteMessage(actionJSON); err != nil {
+            log.Fatalf("Failed to write message: %v", err)
+        }
+    }
+    
+    log.Printf("Logged %d actions to versioned log", writer.GetMessageCount())
+    
+    // Read log with version detection
+    reader := actuation.NewLogReader("robot_mission.eaplog")
+    if err := reader.Open(); err != nil {
+        log.Fatalf("Failed to open log: %v", err)
+    }
+    defer reader.Close()
+    
+    info, err := reader.GetInfo()
+    if err != nil {
+        log.Fatalf("Failed to get log info: %v", err)
+    }
+    
+    log.Printf("Log version: %s", info["version"])
+    log.Printf("Robot ID: %s", info["robot_id"])
+    
+    messages, err := reader.ReadMessages()
+    if err != nil {
+        log.Fatalf("Failed to read messages: %v", err)
+    }
+    log.Printf("Read %d messages from log", len(messages))
+    
+    // Migrate legacy logs to latest version
+    migrator := actuation.NewLogMigrator()
+    if err := migrator.MigrateFile(
+        "legacy.eaplog",
+        "updated.eaplog",
+        actuation.LogVersionV21,
+        &robotID,
+        &sessionID,
+        metadata,
+    ); err != nil {
+        log.Printf("Migration failed (legacy file may not exist): %v", err)
+    } else {
+        log.Println("✓ Successfully migrated legacy log to V2.1")
+    }
+}
+```
 ```
 
 ## Architecture

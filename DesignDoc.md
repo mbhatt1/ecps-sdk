@@ -260,7 +260,6 @@ graph TB
 This layer standardizes how ECPS messages are structured and encoded for transport.
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#666666', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#999999', 'lineColor': '#ffffff', 'secondaryColor': '#777777', 'tertiaryColor': '#555555', 'background': '#2d2d2d', 'mainBkg': '#666666', 'secondBkg': '#777777', 'tertiaryColor': '#888888'}}}%%
 classDiagram
     CloudEventEnvelope *-- ProtobufMessage : contains
     CloudEventEnvelope .. AttributePropagation
@@ -292,9 +291,9 @@ classDiagram
     }
     
     %% Apply styling
-    classDef envelopeClass fill:#666666,stroke:#999999,color:#ffffff
-    classDef messageClass fill:#777777,stroke:#999999,color:#ffffff
-    classDef propagationClass fill:#888888,stroke:#999999,color:#ffffff
+    classDef envelopeClass fill:#404040,stroke:#ffffff,color:#ffffff
+    classDef messageClass fill:#505050,stroke:#ffffff,color:#ffffff
+    classDef propagationClass fill:#606060,stroke:#ffffff,color:#ffffff
     
     class CloudEventEnvelope envelopeClass
     class ProtobufMessage messageClass
@@ -802,7 +801,6 @@ flowchart LR
 The ECPS Trust Layer provides a comprehensive security framework that can be applied transparently to all protocol layers in the stack. It is implemented as a cross-cutting concern that wraps the transport layer but influences all layers above it.
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#666666', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#999999', 'lineColor': '#ffffff', 'secondaryColor': '#777777', 'tertiaryColor': '#555555', 'background': '#2d2d2d', 'mainBkg': '#666666', 'secondBkg': '#777777', 'tertiaryColor': '#888888'}}}%%
 flowchart TB
     %% Trust Layer Integration
     TrustProvider["Trust Provider"]
@@ -829,11 +827,11 @@ flowchart TB
     SecureTransport --> Protocol
     
     %% Styling
-    classDef provider fill:#666666,stroke:#999999,color:#ffffff
-    classDef transport fill:#777777,stroke:#999999,color:#ffffff
-    classDef component fill:#555555,stroke:#999999,color:#ffffff
-    classDef protocol fill:#888888,stroke:#999999,color:#ffffff
-    classDef identity fill:#999999,stroke:#bbbbbb,color:#ffffff
+    classDef provider fill:#404040,stroke:#ffffff,color:#ffffff
+    classDef transport fill:#505050,stroke:#ffffff,color:#ffffff
+    classDef component fill:#606060,stroke:#ffffff,color:#ffffff
+    classDef protocol fill:#707070,stroke:#ffffff,color:#ffffff
+    classDef identity fill:#808080,stroke:#ffffff,color:#ffffff
     
     class TrustProvider provider
     class SecureTransport,BaseTransport transport
@@ -845,18 +843,17 @@ flowchart TB
 * **Trust Levels**: The trust layer operates at distinct security levels:
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#666666', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#999999', 'lineColor': '#ffffff', 'secondaryColor': '#777777', 'tertiaryColor': '#555555', 'background': '#2d2d2d', 'mainBkg': '#666666', 'secondBkg': '#777777', 'tertiaryColor': '#888888'}}}%%
 graph TD
     NoSecurity["Level 0: None<br/>(No Security)"] --> Encryption["Level 1: Encryption<br/>(Message Privacy)"]
     Encryption --> Authentication["Level 2: Authentication<br/>(Identity Verification)"]
     Authentication --> Authorization["Level 3: Authorization<br/>(Permission Control)"]
     Authorization --> Auditing["Level 4: Auditing<br/>(Compliance Tracking)"]
     
-    classDef none fill:#666666,stroke:#999999,color:#ffffff
-    classDef enc fill:#777777,stroke:#999999,color:#ffffff
-    classDef auth fill:#888888,stroke:#999999,color:#ffffff
-    classDef authz fill:#999999,stroke:#bbbbbb,color:#ffffff
-    classDef audit fill:#aaaaaa,stroke:#cccccc,color:#ffffff
+    classDef none fill:#404040,stroke:#ffffff,color:#ffffff
+    classDef enc fill:#505050,stroke:#ffffff,color:#ffffff
+    classDef auth fill:#606060,stroke:#ffffff,color:#ffffff
+    classDef authz fill:#707070,stroke:#ffffff,color:#ffffff
+    classDef audit fill:#808080,stroke:#ffffff,color:#ffffff
     
     class NoSecurity none
     class Encryption enc
@@ -892,7 +889,6 @@ graph TD
 * **Identity Management**: The trust layer includes a comprehensive identity system:
 
 ```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#666666', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#999999', 'lineColor': '#ffffff', 'secondaryColor': '#777777', 'tertiaryColor': '#555555', 'background': '#2d2d2d', 'mainBkg': '#666666', 'secondBkg': '#777777', 'tertiaryColor': '#888888'}}}%%
 classDiagram
     IdentityStore "1" --> "*" Identity : manages
     IdentityProvider --> IdentityStore : uses
@@ -958,12 +954,12 @@ classDiagram
     }
     
     %% Apply styling
-    classDef identityStoreClass fill:#666666,stroke:#999999,color:#ffffff
-    classDef identityProviderClass fill:#777777,stroke:#999999,color:#ffffff
-    classDef identityClass fill:#888888,stroke:#999999,color:#ffffff
-    classDef identityTypeClass fill:#999999,stroke:#bbbbbb,color:#ffffff
-    classDef trustProviderClass fill:#555555,stroke:#999999,color:#ffffff
-    classDef principalClass fill:#aaaaaa,stroke:#cccccc,color:#ffffff
+    classDef identityStoreClass fill:#404040,stroke:#ffffff,color:#ffffff
+    classDef identityProviderClass fill:#505050,stroke:#ffffff,color:#ffffff
+    classDef identityClass fill:#606060,stroke:#ffffff,color:#ffffff
+    classDef identityTypeClass fill:#707070,stroke:#ffffff,color:#ffffff
+    classDef trustProviderClass fill:#808080,stroke:#ffffff,color:#ffffff
+    classDef principalClass fill:#909090,stroke:#ffffff,color:#ffffff
     
     class IdentityStore identityStoreClass
     class IdentityProvider identityProviderClass

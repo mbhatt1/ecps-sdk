@@ -796,6 +796,7 @@ flowchart LR
 The ECPS Trust Layer provides a comprehensive security framework that can be applied transparently to all protocol layers in the stack. It is implemented as a cross-cutting concern that wraps the transport layer but influences all layers above it.
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
 flowchart TB
     %% Trust Layer Integration
     TrustProvider["Trust Provider"]
@@ -808,30 +809,56 @@ flowchart TB
     Authorization["Authorization<br>RBAC"]
     Encryption["Encryption<br>RSA/AES"]
     Principals["Principals<br>Users/Services"]
+    Identity["Identity Management<br>Users/Services/Devices/Robots"]
     
     %% Flow
     TrustProvider --- Authentication
     TrustProvider --- Authorization
     TrustProvider --- Encryption
     TrustProvider --- Principals
+    TrustProvider --- Identity
     
     TrustProvider --> SecureTransport
     BaseTransport --> SecureTransport
     SecureTransport --> Protocol
     
     %% Styling
-    classDef provider fill:#d5e8d4,stroke:#82b366
-    classDef transport fill:#dae8fc,stroke:#6c8ebf
-    classDef component fill:#ffe6cc,stroke:#d79b00
-    classDef protocol fill:#f8cecc,stroke:#b85450
+    classDef provider fill:#2a3950,stroke:#4671a5,color:#f5f5f5
+    classDef transport fill:#3a506b,stroke:#4671a5,color:#f5f5f5
+    classDef component fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
+    classDef protocol fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
+    classDef identity fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
     
     class TrustProvider provider
     class SecureTransport,BaseTransport transport
     class Authentication,Authorization,Encryption,Principals component
     class Protocol protocol
+    class Identity identity
 ```
 
 * **Trust Levels**: The trust layer operates at distinct security levels:
+
+```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
+graph TD
+    NoSecurity["Level 0: None<br/>(No Security)"] --> Encryption["Level 1: Encryption<br/>(Message Privacy)"]
+    Encryption --> Authentication["Level 2: Authentication<br/>(Identity Verification)"]
+    Authentication --> Authorization["Level 3: Authorization<br/>(Permission Control)"]
+    Authorization --> Auditing["Level 4: Auditing<br/>(Compliance Tracking)"]
+    
+    classDef none fill:#3a506b,stroke:#4671a5,color:#f5f5f5
+    classDef enc fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
+    classDef auth fill:#2a3950,stroke:#4671a5,color:#f5f5f5
+    classDef authz fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
+    classDef audit fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    
+    class NoSecurity none
+    class Encryption enc
+    class Authentication auth
+    class Authorization authz
+    class Auditing audit
+```
+
   * **None (L0)**: No security mechanisms active; suitable for development or isolated environments
   * **Encryption (L1)**: Message payloads are encrypted but no authentication
   * **Authentication (L2)**: Verifies identity of communicating parties through JWT or certificates
@@ -855,6 +882,90 @@ flowchart TB
   * Message timestamps for replay protection
   * Digital signatures for integrity verification
   * Encrypted payloads for confidentiality
+
+* **Identity Management**: The trust layer includes a comprehensive identity system:
+
+```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
+classDiagram
+    IdentityStore "1" --> "*" Identity : manages
+    IdentityProvider --> IdentityStore : uses
+    IdentityProvider --> TrustProvider : uses
+    Identity --> IdentityType : has type
+    TrustProvider "1" --> "*" Principal : manages
+    IdentityStore ..> Principal : associates
+    
+    class IdentityStore {
+        +identities: Map~String, Identity~
+        +credentials: Map~String, String~
+        +identityPrincipals: Map~String, String~
+        +CreateIdentity(name, type, attributes)
+        +GetIdentity(id)
+        +UpdateIdentity(identity)
+        +DeleteIdentity(id)
+        +SetCredential(id, credential)
+        +VerifyCredential(id, credential)
+        +AssociatePrincipal(identityId, principalId)
+        +GetPrincipalId(identityId)
+    }
+    
+    class IdentityProvider {
+        +identityStore: IdentityStore
+        +trustProvider: TrustProvider
+        +Authenticate(id, credential)
+        +CreateIdentityToken(identity)
+        +ValidateIdentityToken(token)
+        +IdentityToPrincipal(identity)
+    }
+    
+    class Identity {
+        +id: String
+        +name: String
+        +type: IdentityType
+        +attributes: Map~String, String~
+        +enabled: Boolean
+        +createdAt: DateTime
+        +lastAuthenticated: DateTime
+    }
+    
+    class IdentityType {
+        <<enumeration>>
+        USER
+        SERVICE
+        DEVICE
+        ROBOT
+    }
+    
+    class TrustProvider {
+        +principals: Map~String, Principal~
+        +GetPrincipal(id)
+        +AddPrincipal(principal)
+        +RemovePrincipal(id)
+    }
+    
+    class Principal {
+        +id: String
+        +name: String
+        +roles: List~String~
+        +permissions: Map~String, Boolean~
+        +attributes: Map~String, String~
+    }
+    
+    %% Apply styling
+    classDef identityStoreClass fill:#2a3950,stroke:#4671a5,color:#f5f5f5
+    classDef identityProviderClass fill:#3a506b,stroke:#4671a5,color:#f5f5f5
+    classDef identityClass fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    classDef identityTypeClass fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
+    classDef trustProviderClass fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
+    classDef principalClass fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
+    
+    class IdentityStore identityStoreClass
+    class IdentityProvider identityProviderClass
+    class Identity identityClass
+    class IdentityType identityTypeClass
+    class TrustProvider trustProviderClass
+    class Principal principalClass
+```
 
 * **Integration with Protocol Layers**: The trust layer transparently secures all protocol layers:
   * **LTP**: Ensures tensor data confidentiality and authenticity

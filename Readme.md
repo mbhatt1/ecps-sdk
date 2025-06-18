@@ -231,6 +231,12 @@ The ECPS SDK provides a comprehensive trust layer for securing communications ac
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
 flowchart TB
+    BT["Base Transport"] --> ST
+    ST --> ECPS["ECPS Protocols<br/>(LTP, MCP, MEP, EAP)"]
+    TP --> Principals
+    ID --> Identities
+    Security --> TP
+    
     subgraph TrustLayer["Trust Layer Components"]
         direction TB
         TP["TrustProvider<br/>(Authentication, Authorization)"]
@@ -267,12 +273,7 @@ flowchart TB
         S4["OAuth/OIDC"]
     end
     
-    BT["Base Transport"] --> ST
-    ST --> ECPS["ECPS Protocols<br/>(LTP, MCP, MEP, EAP)"]
-    TP --> Principals
-    ID --> Identities
-    Security --> TP
-    
+    %% Styling
     classDef primary fill:#2a3950,stroke:#4671a5,color:#f5f5f5
     classDef secondary fill:#3a506b,stroke:#4671a5,color:#f5f5f5
     classDef tertiary fill:#1e3a5f,stroke:#4671a5,color:#f5f5f5
@@ -293,7 +294,7 @@ The trust layer implements graduated security levels to meet different deploymen
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#2a3950', 'primaryTextColor': '#f5f5f5', 'primaryBorderColor': '#4671a5', 'lineColor': '#a7c3e6', 'secondaryColor': '#3a506b', 'tertiaryColor': '#1e3a5f'}}}%%
 graph TD
-    None["Level 0: None<br/>(No Security)"] --> Encryption["Level 1: Encryption<br/>(Message Privacy)"]
+    NoSecurity["Level 0: None<br/>(No Security)"] --> Encryption["Level 1: Encryption<br/>(Message Privacy)"]
     Encryption --> Authentication["Level 2: Authentication<br/>(Identity Verification)"]
     Authentication --> Authorization["Level 3: Authorization<br/>(Permission Control)"]
     Authorization --> Auditing["Level 4: Auditing<br/>(Compliance Tracking)"]
@@ -304,7 +305,7 @@ graph TD
     classDef authz fill:#6a89cc,stroke:#4671a5,color:#f5f5f5
     classDef audit fill:#ff7e5f,stroke:#4671a5,color:#f5f5f5
     
-    class None none
+    class NoSecurity none
     class Encryption enc
     class Authentication auth
     class Authorization authz

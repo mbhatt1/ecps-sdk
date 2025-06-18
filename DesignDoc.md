@@ -260,39 +260,45 @@ graph TB
 This layer standardizes how ECPS messages are structured and encoded for transport.
 
 ```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#666666', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#999999', 'lineColor': '#ffffff', 'secondaryColor': '#777777', 'tertiaryColor': '#555555', 'background': '#2d2d2d', 'mainBkg': '#666666', 'secondBkg': '#777777', 'tertiaryColor': '#888888'}}}%%
 classDiagram
+    CloudEventEnvelope *-- ProtobufMessage : contains
+    CloudEventEnvelope .. AttributePropagation
+    AttributePropagation .. ProtobufMessage
+    
     class CloudEventEnvelope {
-        id: "4d3a18e0-1f2a..."
-        source: "urn:robot:arm1"
-        type: "ecps.mcp.prompt"
-        specversion: "1.0"
-        datacontenttype: "application/cloudevents+protobuf"
-        data: [binary]
+        +id: String
+        +source: String
+        +type: String
+        +specversion: String
+        +datacontenttype: String
+        +data: Binary
     }
     
     class ProtobufMessage {
-        <<ECPS Message (MCP)>>
-        spec: "mcp/1.0"
-        id: "4d3a18e0-1f2a..."
-        prompt: "Move to coordinates..."
-        tool_call: [Any]
-        meta: {key: value}
+        <<ECPS Message MCP>>
+        +spec: String
+        +id: String
+        +prompt: String
+        +tool_call: Any
+        +meta: Map~String, String~
     }
-    
-    CloudEventEnvelope *-- ProtobufMessage : contains
-    
-    note for CloudEventEnvelope "Standard CloudEvents attributes\nfor interoperability"
-    note for ProtobufMessage "Protobuf-encoded message\nwith mirrored 'id' from CloudEvents"
     
     class AttributePropagation {
         <<Mirror>>
-        CloudEvents.id → ECPS.id
-        CloudEvents.source → trace context
-        CloudEvents.type → message type
+        +CloudEvents_id_to_ECPS_id()
+        +CloudEvents_source_to_trace_context()
+        +CloudEvents_type_to_message_type()
     }
     
-    CloudEventEnvelope .. AttributePropagation
-    AttributePropagation .. ProtobufMessage
+    %% Apply styling
+    classDef envelopeClass fill:#666666,stroke:#999999,color:#ffffff
+    classDef messageClass fill:#777777,stroke:#999999,color:#ffffff
+    classDef propagationClass fill:#888888,stroke:#999999,color:#ffffff
+    
+    class CloudEventEnvelope envelopeClass
+    class ProtobufMessage messageClass
+    class AttributePropagation propagationClass
 ```
 
 #### 3.3.1. Protocol Buffers (Protobuf)

@@ -1,0 +1,369 @@
+# ECPS Golden Path Production Requirements
+# Production-grade dependencies for the complete agentic AI workflow
+
+# Core ECPS SDK
+ecps-uv>=1.0.0
+
+# Async I/O and networking
+uvloop>=0.19.0
+aiohttp>=3.9.0
+websockets>=12.0
+
+# Protocol Buffers and gRPC
+protobuf>=4.25.0
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+
+# Security and cryptography
+cryptography>=41.0.0
+PyJWT>=2.8.0
+pyopenssl>=23.3.0
+pykcs11>=1.5.15  # HSM/PKCS#11 support
+python-tss>=1.0.0  # TPM 2.0 support
+
+# Data processing and ML
+numpy>=1.24.0
+scipy>=1.11.0
+scikit-learn>=1.3.0
+torch>=2.1.0  # For tensor processing
+torchvision>=0.16.0
+opencv-python>=4.8.0  # Computer vision
+
+# LLM integrations
+openai>=1.3.0
+anthropic>=0.7.0
+langchain>=0.1.0
+langchain-openai>=0.0.5
+
+# Memory and embeddings
+faiss-cpu>=1.7.4  # Vector similarity search
+chromadb>=0.4.0  # Vector database
+redis>=5.0.0  # Caching and pub/sub
+
+# Observability and monitoring
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-instrumentation>=0.42b0
+opentelemetry-exporter-prometheus>=1.12.0rc1
+opentelemetry-exporter-jaeger>=1.21.0
+prometheus-client>=0.19.0
+structlog>=23.2.0
+
+# Data serialization and compression
+msgpack>=1.0.7
+zstandard>=0.22.0  # Fast compression
+lz4>=4.3.2
+orjson>=3.9.0  # Fast JSON
+
+# Configuration and environment
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+toml>=0.10.2
+
+# Database connectivity
+asyncpg>=0.29.0  # PostgreSQL async
+aioredis>=2.0.1  # Redis async
+motor>=3.3.0  # MongoDB async
+
+# HTTP client and server
+httpx>=0.25.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Image and video processing
+pillow>=10.1.0
+imageio>=2.33.0
+av>=10.0.0  # Video processing
+
+# Scientific computing
+pandas>=2.1.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Utilities
+click>=8.1.7  # CLI framework
+rich>=13.7.0  # Rich terminal output
+typer>=0.9.0  # Modern CLI framework
+tqdm>=4.66.0  # Progress bars
+psutil>=5.9.0  # System monitoring
+schedule>=1.2.0  # Task scheduling
+
+# Development and testing (for Golden Path demo)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+pytest-benchmark>=4.0.0
+pytest-timeout>=2.2.0
+pytest-xdist>=3.5.0  # Parallel testing
+
+# Code quality
+black>=23.11.0
+isort>=5.12.0
+pylint>=3.0.0
+mypy>=1.7.0
+bandit>=1.7.5
+safety>=2.3.0
+
+# Performance testing
+locust>=2.17.0
+memory-profiler>=0.61.0
+py-spy>=0.3.14
+
+# Security testing
+atheris>=2.3.0  # Fuzzing framework
+
+# Container and deployment
+docker>=6.1.0
+kubernetes>=28.1.0
+
+# Documentation
+sphinx>=7.2.0
+sphinx-rtd-theme>=1.3.0
+myst-parser>=2.0.0
+
+# Jupyter for analysis and demos
+jupyter>=1.0.0
+ipykernel>=6.26.0
+matplotlib>=3.8.0
+
+# Production WSGI/ASGI servers
+gunicorn>=21.2.0
+uvicorn[standard]>=0.24.0
+
+# Message queues and streaming
+pika>=1.3.2  # RabbitMQ
+kafka-python>=2.0.2
+aiokafka>=0.10.0
+
+# Time series and metrics
+influxdb-client>=1.38.0
+grafana-api>=1.0.3
+
+# Distributed computing
+celery>=5.3.0
+dask>=2023.11.0
+
+# API documentation
+fastapi>=0.104.0
+swagger-ui-bundle>=0.1.2
+
+# Networking and protocols
+scapy>=2.5.0  # Network packet manipulation
+pymodbus>=3.5.0  # Modbus protocol
+opcua>=0.98.13  # OPC-UA protocol
+
+# Hardware interfaces
+pyserial>=3.5
+pyusb>=1.2.1
+gpiozero>=1.6.2  # Raspberry Pi GPIO
+
+# Audio processing (for multimodal AI)
+librosa>=0.10.1
+soundfile>=0.12.1
+pyaudio>=0.2.11
+
+# 3D processing and robotics
+open3d>=0.18.0  # 3D point clouds
+trimesh>=4.0.0  # 3D mesh processing
+robotics-toolbox-python>=1.1.0
+spatialmath-python>=1.1.0
+
+# Simulation and modeling
+pybullet>=3.2.5  # Physics simulation
+gymnasium>=0.29.0  # RL environments
+stable-baselines3>=2.2.0  # RL algorithms
+
+# Edge deployment
+onnx>=1.15.0
+onnxruntime>=1.16.0
+tensorrt>=8.6.0  # NVIDIA TensorRT
+openvino>=2023.2.0  # Intel OpenVINO
+
+# Cloud integrations
+boto3>=1.34.0  # AWS
+azure-storage-blob>=12.19.0  # Azure
+google-cloud-storage>=2.10.0  # GCP
+
+# Blockchain and distributed ledger (for audit trails)
+web3>=6.12.0
+eth-account>=0.10.0
+
+# Additional ML frameworks
+transformers>=4.36.0  # Hugging Face
+sentence-transformers>=2.2.2
+datasets>=2.15.0
+
+# Graph processing
+networkx>=3.2.1
+igraph>=0.11.0
+
+# Optimization
+cvxpy>=1.4.0
+scipy>=1.11.0
+
+# Parallel processing
+multiprocessing-logging>=0.3.4
+concurrent-futures>=3.1.1
+
+# System integration
+systemd-python>=235
+dbus-python>=1.3.2
+
+# Hardware monitoring
+pynvml>=11.5.0  # NVIDIA GPU monitoring
+intel-gpu-tools>=1.0.0  # Intel GPU monitoring
+
+# Production monitoring
+sentry-sdk>=1.38.0
+datadog>=0.48.0
+newrelic>=9.2.0
+
+# Load balancing and service discovery
+consul>=1.1.0
+etcd3>=0.12.0
+haproxy-stats>=2.0.0
+
+# Message encryption and signing
+cryptography>=41.0.0
+pynacl>=1.5.0
+ecdsa>=0.18.0
+
+# Real-time communication
+socket.io>=5.10.0
+socketio-client>=0.7.2
+
+# Workflow orchestration
+prefect>=2.14.0
+airflow>=2.7.0
+luigi>=3.4.0
+
+# Feature flags and A/B testing
+launchdarkly-server-sdk>=8.2.0
+split-io>=8.3.0
+
+# API rate limiting
+slowapi>=0.1.9
+limits>=3.6.0
+
+# Circuit breakers and resilience
+pybreaker>=1.0.1
+tenacity>=8.2.3
+
+# Distributed tracing
+jaeger-client>=4.8.0
+zipkin>=0.2.2
+
+# Service mesh integration
+istio>=1.19.0
+linkerd>=2.14.0
+
+# Container orchestration
+helm>=3.13.0
+kustomize>=5.2.0
+
+# Infrastructure as code
+terraform>=1.6.0
+ansible>=8.7.0
+pulumi>=3.95.0
+
+# Secrets management
+hvac>=2.0.0  # HashiCorp Vault
+keyring>=24.3.0
+python-keyczar>=0.716
+
+# Compliance and auditing
+compliance-checker>=5.0.0
+audit-log>=1.0.0
+
+# Performance profiling
+py-spy>=0.3.14
+austin>=3.6.0
+scalene>=1.5.26
+
+# Memory optimization
+pympler>=0.9
+objgraph>=3.6.0
+tracemalloc>=1.0.0
+
+# Network security
+scapy>=2.5.0
+nmap>=0.1.4
+python-nmap>=0.7.1
+
+# Backup and disaster recovery
+duplicity>=2.1.4
+restic>=0.16.0
+
+# Log aggregation and analysis
+loguru>=0.7.2
+python-json-logger>=2.0.7
+elasticsearch>=8.11.0
+
+# Time series forecasting
+prophet>=1.1.5
+statsmodels>=0.14.0
+pmdarima>=2.0.4
+
+# Anomaly detection
+pyod>=1.1.0
+isolation-forest>=0.1.2
+scikit-multiflow>=0.5.3
+
+# Natural language processing
+spacy>=3.7.0
+nltk>=3.8.1
+textblob>=0.17.1
+
+# Computer vision
+ultralytics>=8.0.0  # YOLOv8
+detectron2>=0.6.0
+mmcv>=2.0.0
+
+# Robotics middleware
+rclpy>=4.0.0  # ROS 2 Python client
+geometry-msgs>=4.2.0
+sensor-msgs>=4.2.0
+std-msgs>=4.2.0
+
+# Industrial protocols
+pymodbus>=3.5.0
+opcua>=0.98.13
+profinet>=1.0.0
+ethercat>=1.0.0
+
+# Edge AI acceleration
+tflite-runtime>=2.14.0
+coral-python-api>=1.0.0
+jetson-inference>=1.0.0
+
+# Quantum computing (future-proofing)
+qiskit>=0.45.0
+cirq>=1.3.0
+pennylane>=0.33.0
+
+# Augmented/Virtual Reality
+opencv-contrib-python>=4.8.0
+mediapipe>=0.10.0
+pyopenxr>=1.0.0
+
+# Digital twins
+azure-digitaltwins-core>=1.2.0
+aws-iot-twinmaker>=1.0.0
+
+# Federated learning
+flower>=1.6.0
+fedml>=0.8.0
+pysyft>=0.8.0
+
+# Explainable AI
+shap>=0.43.0
+lime>=0.2.0.1
+eli5>=0.13.0
+
+# Model versioning and MLOps
+mlflow>=2.8.0
+wandb>=0.16.0
+dvc>=3.30.0

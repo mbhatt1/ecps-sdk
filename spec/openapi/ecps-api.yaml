@@ -1,0 +1,701 @@
+openapi: 3.0.3
+info:
+  title: ECPS REST API
+  description: |
+    REST API specification for the Embodied Cognition Protocol Stack (ECPS).
+    This API provides HTTP/REST bindings for ECPS protocol operations, enabling
+    web-based and HTTP-only clients to interact with ECPS systems.
+    
+    For full protocol support, use the gRPC bindings generated from the Protocol
+    Buffer definitions in `/spec/proto/`.
+  version: 1.0.0
+  contact:
+    name: ECPS Development Team
+    url: https://github.com/ecps/ecps
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.ecps.example.com/v1
+    description: Production server
+  - url: https://staging-api.ecps.example.com/v1
+    description: Staging server
+  - url: http://localhost:8080/v1
+    description: Local development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # Authentication and Trust
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate and obtain JWT token
+      description: Authenticate using credentials and receive a JWT token for subsequent requests
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT token
+      description: Refresh an existing JWT token before it expires
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/status:
+    get:
+      tags: [Authentication]
+      summary: Get authentication status
+      description: Check current authentication status and token validity
+      responses:
+        '200':
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # Cognition Layer (MCP/MEP)
+  /cognition/prompts:
+    post:
+      tags: [Cognition]
+      summary: Send MCP prompt
+      description: Send a Model Context Protocol (MCP) prompt for processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MCPRequest'
+      responses:
+        '200':
+          description: Prompt processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /cognition/prompts/{promptId}:
+    get:
+      tags: [Cognition]
+      summary: Get prompt status
+      description: Retrieve the status and result of a previously submitted prompt
+      parameters:
+        - name: promptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cognition/memory:
+    post:
+      tags: [Cognition]
+      summary: Store memory embedding
+      description: Store a memory embedding using Memory Exchange Protocol (MEP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MEPStoreRequest'
+      responses:
+        '201':
+          description: Memory stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MEPStoreResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags: [Cognition]
+      summary: Query memory embeddings
+      description: Query stored memory embeddings with similarity search
+      parameters:
+        - name: query
+          in: query
+          description: Query embedding (base64 encoded)
+          required: true
+          schema:
+            type: string
+            format: byte
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: threshold
+          in: query
+          description: Similarity threshold (0.0-1.0)
+          schema:
+            type: number
+            format: float
+            minimum: 0.0
+            maximum: 1.0
+            default: 0.7
+      responses:
+        '200':
+          description: Memory query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MEPQueryResponse'
+
+  # Actuation Layer (EAP)
+  /actuation/actions:
+    post:
+      tags: [Actuation]
+      summary: Execute robot action
+      description: Execute a robot action using Embodied Action Protocol (EAP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EAPActionRequest'
+      responses:
+        '202':
+          description: Action accepted for execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EAPActionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /actuation/actions/{actionId}:
+    get:
+      tags: [Actuation]
+      summary: Get action status
+      description: Retrieve the status of a previously submitted action
+      parameters:
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Action status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EAPActionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Actuation]
+      summary: Cancel action
+      description: Cancel a pending or executing action
+      parameters:
+        - name: actionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Action cancelled successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Action cannot be cancelled (already completed)
+
+  # Perception Layer (LTP)
+  /perception/tensors:
+    post:
+      tags: [Perception]
+      summary: Upload tensor data
+      description: Upload perception tensor data using Latent Tensor Protocol (LTP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LTPTensorRequest'
+      responses:
+        '201':
+          description: Tensor data uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LTPTensorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: Tensor data too large
+
+  /perception/tensors/{tensorId}:
+    get:
+      tags: [Perception]
+      summary: Download tensor data
+      description: Download previously uploaded tensor data
+      parameters:
+        - name: tensorId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tensor data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LTPTensorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # System Status and Health
+  /system/health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Check system health and component status
+      security: []
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /system/status:
+    get:
+      tags: [System]
+      summary: Get system status
+      description: Get detailed system status including security components
+      responses:
+        '200':
+          description: System status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    # Authentication schemas
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        device_id:
+          type: string
+          description: Optional device identifier for hardware security
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        refresh_token:
+          type: string
+          description: Refresh token
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+        token_type:
+          type: string
+          enum: [Bearer]
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    AuthStatus:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        user_id:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    # Cognition schemas
+    MCPRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          description: The prompt text to process
+        context:
+          type: object
+          description: Additional context for the prompt
+        model:
+          type: string
+          description: Preferred model for processing
+        temperature:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 2.0
+
+    MCPResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        response:
+          type: string
+          description: Generated response (when completed)
+        error:
+          type: string
+          description: Error message (when failed)
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    MEPStoreRequest:
+      type: object
+      required: [embedding, metadata]
+      properties:
+        embedding:
+          type: string
+          format: byte
+          description: Base64 encoded embedding vector
+        metadata:
+          type: object
+          description: Associated metadata
+        namespace:
+          type: string
+          description: Memory namespace
+
+    MEPStoreResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [stored, failed]
+
+    MEPQueryResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              similarity:
+                type: number
+                format: float
+              metadata:
+                type: object
+              embedding:
+                type: string
+                format: byte
+
+    # Actuation schemas
+    EAPActionRequest:
+      type: object
+      required: [action_type, target]
+      properties:
+        action_type:
+          type: string
+          enum: [move, grasp, release, set_pose, navigate]
+        target:
+          type: string
+          description: Target device or component
+        parameters:
+          type: object
+          description: Action-specific parameters
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+        timeout:
+          type: integer
+          description: Timeout in milliseconds
+
+    EAPActionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, executing, completed, failed, cancelled]
+        result:
+          type: object
+          description: Action result (when completed)
+        error:
+          type: string
+          description: Error message (when failed)
+        progress:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    # Perception schemas
+    LTPTensorRequest:
+      type: object
+      required: [tensor_data, shape, dtype]
+      properties:
+        tensor_data:
+          type: string
+          format: byte
+          description: Base64 encoded tensor data
+        shape:
+          type: array
+          items:
+            type: integer
+          description: Tensor dimensions
+        dtype:
+          type: string
+          enum: [float32, float64, int32, int64, uint8]
+        compression:
+          type: string
+          enum: [none, zstd, gzip]
+        metadata:
+          type: object
+
+    LTPTensorResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tensor_data:
+          type: string
+          format: byte
+        shape:
+          type: array
+          items:
+            type: integer
+        dtype:
+          type: string
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    # System schemas
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [healthy, degraded, unhealthy]
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    SystemStatus:
+      type: object
+      properties:
+        version:
+          type: string
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        security:
+          type: object
+          properties:
+            jwt_rotation_enabled:
+              type: boolean
+            mtls_enabled:
+              type: boolean
+            hsm_available:
+              type: boolean
+            tpm_available:
+              type: boolean
+        performance:
+          type: object
+          properties:
+            cpu_usage:
+              type: number
+              format: float
+            memory_usage:
+              type: number
+              format: float
+            active_connections:
+              type: integer
+
+    # Error schemas
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Authentication
+    description: Authentication and authorization operations
+  - name: Cognition
+    description: Cognition layer operations (MCP/MEP)
+  - name: Actuation
+    description: Actuation layer operations (EAP)
+  - name: Perception
+    description: Perception layer operations (LTP)
+  - name: System
+    description: System status and health operations

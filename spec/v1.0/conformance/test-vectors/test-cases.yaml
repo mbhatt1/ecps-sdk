@@ -1,0 +1,270 @@
+# ECPS v1.0 Conformance Test Cases Configuration
+
+test_cases:
+  # MCP (Model Context Protocol) Tests
+  - name: "mcp-basic-prompt"
+    category: "protocol-messages"
+    description: "Validate basic MCP message with simple prompt"
+    test_type: "validate-message"
+    input_file: "mcp/valid/basic-prompt.bin"
+    config:
+      message_type: "MCP"
+    timeout: 10
+
+  - name: "mcp-with-tools"
+    category: "protocol-messages"
+    description: "Validate MCP message with tool schema"
+    test_type: "validate-message"
+    input_file: "mcp/valid/with-tools.bin"
+    config:
+      message_type: "MCP"
+    timeout: 10
+
+  - name: "mcp-oversized-prompt"
+    category: "protocol-messages"
+    description: "Reject MCP message with prompt > 16 KiB"
+    test_type: "validate-message"
+    input_file: "mcp/invalid/oversized-prompt.bin"
+    config:
+      message_type: "MCP"
+      expect_failure: true
+    timeout: 10
+
+  - name: "mcp-invalid-spec"
+    category: "protocol-messages"
+    description: "Reject MCP message with invalid spec version"
+    test_type: "validate-message"
+    input_file: "mcp/invalid/invalid-spec.bin"
+    config:
+      message_type: "MCP"
+      expect_failure: true
+    timeout: 10
+
+  # LTP (Latent Tensor Protocol) Tests
+  - name: "ltp-float32-tensor"
+    category: "protocol-messages"
+    description: "Validate LTP message with float32 tensor"
+    test_type: "validate-message"
+    input_file: "ltp/valid/float32-tensor.bin"
+    config:
+      message_type: "LTP"
+    timeout: 15
+
+  - name: "ltp-compression-integrity"
+    category: "behavioral"
+    description: "Verify LTP tensor compression/decompression integrity"
+    test_type: "ltp-compression"
+    input_file: "ltp/valid/float32-tensor.bin"
+    timeout: 20
+
+  - name: "ltp-chunked-transmission"
+    category: "transport"
+    description: "Validate LTP chunked transmission for large tensors"
+    test_type: "validate-message"
+    input_file: "ltp/valid/chunked-transmission.bin"
+    config:
+      message_type: "LTPChunk"
+    timeout: 30
+
+  - name: "ltp-oversized-frame"
+    category: "protocol-messages"
+    description: "Reject LTP frame > 1 MiB"
+    test_type: "validate-message"
+    input_file: "ltp/invalid/oversized-frame.bin"
+    config:
+      message_type: "LTP"
+      expect_failure: true
+    timeout: 10
+
+  # EAP (Embodied Action Protocol) Tests
+  - name: "eap-robot-pose"
+    category: "protocol-messages"
+    description: "Validate EAP message with robot pose action"
+    test_type: "validate-message"
+    input_file: "eap/valid/robot-pose.bin"
+    config:
+      message_type: "EAP"
+    timeout: 10
+
+  - name: "eap-gripper-operation"
+    category: "protocol-messages"
+    description: "Validate EAP message with gripper operation"
+    test_type: "validate-message"
+    input_file: "eap/valid/gripper-op.bin"
+    config:
+      message_type: "EAP"
+    timeout: 10
+
+  - name: "eap-navigation-command"
+    category: "protocol-messages"
+    description: "Validate EAP message with navigation command"
+    test_type: "validate-message"
+    input_file: "eap/valid/navigation.bin"
+    config:
+      message_type: "EAP"
+    timeout: 10
+
+  - name: "eap-deterministic-replay"
+    category: "behavioral"
+    description: "Verify EAP deterministic replay with state hashes"
+    test_type: "eap-replay"
+    input_file: "eap/valid/action-sequence.bin"
+    config:
+      state_hashes: "eap/valid/state-hashes.txt"
+    timeout: 30
+
+  # MEP (Memory Exchange Protocol) Tests
+  - name: "mep-basic-query"
+    category: "behavioral"
+    description: "Validate MEP query with similarity threshold"
+    test_type: "mep-query"
+    input_file: "mep/queries/basic-query.bin"
+    expected_output: "mep/responses/query-results.bin"
+    timeout: 20
+
+  - name: "mep-similarity-threshold"
+    category: "behavioral"
+    description: "Verify MEP respects minimum similarity threshold"
+    test_type: "mep-query"
+    input_file: "mep/queries/similarity-threshold.bin"
+    expected_output: "mep/responses/empty-results.bin"
+    timeout: 20
+
+  - name: "mep-k-limiting"
+    category: "behavioral"
+    description: "Verify MEP returns at most k results"
+    test_type: "mep-query"
+    input_file: "mep/queries/k-limit-query.bin"
+    expected_output: "mep/responses/k-limited-results.bin"
+    timeout: 20
+
+  # Transport Layer Tests
+  - name: "dds-qos-reliable"
+    category: "transport"
+    description: "Validate DDS transport with RELIABLE QoS"
+    test_type: "transport-test"
+    input_file: "transport/dds/reliable-message.bin"
+    config:
+      transport: "dds"
+      config_file: "transport/dds/reliable-qos.yaml"
+    timeout: 30
+
+  - name: "grpc-streaming"
+    category: "transport"
+    description: "Validate gRPC streaming for MEP queries"
+    test_type: "transport-test"
+    input_file: "transport/grpc/streaming-query.bin"
+    config:
+      transport: "grpc"
+      config_file: "transport/grpc/streaming-config.yaml"
+    timeout: 45
+
+  - name: "mqtt-qos1"
+    category: "transport"
+    description: "Validate MQTT transport with QoS 1"
+    test_type: "transport-test"
+    input_file: "transport/mqtt/qos1-message.bin"
+    config:
+      transport: "mqtt"
+      config_file: "transport/mqtt/qos1-config.yaml"
+    timeout: 30
+
+  # CloudEvents Integration Tests
+  - name: "cloudevents-id-propagation"
+    category: "integration"
+    description: "Verify CloudEvents ID propagation through message chain"
+    test_type: "validate-message"
+    input_file: "integration/cloudevents-chain.bin"
+    config:
+      message_type: "CloudEventAttributes"
+    timeout: 15
+
+  # Observability Tests
+  - name: "otlp-trace-emission"
+    category: "observability"
+    description: "Verify OTLP trace emission with CloudEvents ID as trace_id"
+    test_type: "transport-test"
+    input_file: "observability/trace-test.bin"
+    config:
+      transport: "grpc"
+      config_file: "observability/otlp-config.yaml"
+    timeout: 30
+
+  # Security Tests
+  - name: "tls-transport-security"
+    category: "security"
+    description: "Validate TLS encryption for WAN transport"
+    test_type: "transport-test"
+    input_file: "security/tls-message.bin"
+    config:
+      transport: "grpc"
+      config_file: "security/tls-config.yaml"
+    timeout: 30
+
+  # Performance Tests
+  - name: "high-frequency-ltp"
+    category: "performance"
+    description: "Validate high-frequency LTP message throughput"
+    test_type: "transport-test"
+    input_file: "performance/high-freq-ltp.bin"
+    config:
+      transport: "dds"
+      config_file: "performance/high-freq-config.yaml"
+    timeout: 60
+
+  - name: "large-tensor-compression"
+    category: "performance"
+    description: "Validate compression performance for large tensors"
+    test_type: "ltp-compression"
+    input_file: "performance/large-tensor.bin"
+    timeout: 120
+
+# Test Categories
+categories:
+  protocol-messages:
+    description: "Basic protocol message structure and constraint validation"
+    required_for_certification: ["Level 1", "Level 2", "Level 3"]
+    
+  behavioral:
+    description: "Protocol behavior and semantic validation"
+    required_for_certification: ["Level 2", "Level 3"]
+    
+  transport:
+    description: "Transport layer binding validation"
+    required_for_certification: ["Level 2", "Level 3"]
+    
+  integration:
+    description: "End-to-end integration testing"
+    required_for_certification: ["Level 3"]
+    
+  observability:
+    description: "Observability and monitoring integration"
+    required_for_certification: ["Level 2", "Level 3"]
+    
+  security:
+    description: "Security and encryption validation"
+    required_for_certification: ["Level 3"]
+    
+  performance:
+    description: "Performance and throughput validation"
+    required_for_certification: ["Level 3"]
+
+# Certification Levels
+certification_levels:
+  "Level 1":
+    name: "Basic Conformance"
+    description: "Basic message validation and single transport support"
+    required_categories: ["protocol-messages"]
+    min_pass_rate: 100
+    
+  "Level 2":
+    name: "Standard Conformance"
+    description: "Multi-transport support with behavioral validation"
+    required_categories: ["protocol-messages", "behavioral", "transport", "observability"]
+    min_pass_rate: 95
+    
+  "Level 3":
+    name: "Full Conformance"
+    description: "Complete ECPS implementation with all features"
+    required_categories: ["protocol-messages", "behavioral", "transport", "integration", "observability", "security", "performance"]
+    min_pass_rate: 90

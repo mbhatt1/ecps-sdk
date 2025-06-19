@@ -1,0 +1,223 @@
+# ECPS v1.0 Conformance Test Interface Specification
+
+# This schema defines the required interface that ECPS implementations
+# must provide to participate in conformance testing.
+
+conformance_interface:
+  version: "1.0"
+  description: "Standard interface for ECPS conformance testing"
+  
+  # Required commands that implementations must support
+  commands:
+    validate-message:
+      description: "Validate a single ECPS message for structural and constraint compliance"
+      usage: "ecps-conformance validate-message --type <MESSAGE_TYPE> --input <FILE>"
+      parameters:
+        type:
+          required: true
+          description: "ECPS message type (MCP, LTP, EAP, etc.)"
+          values: ["MCP", "LTP", "LTPChunk", "LTPAck", "EAP", "QueryReq", "Ack", "CloudEventAttributes"]
+        input:
+          required: true
+          description: "Path to binary protobuf message file"
+          type: "file_path"
+        expect-failure:
+          required: false
+          description: "Expect validation to fail (for negative test cases)"
+          type: "boolean"
+          default: false
+      exit_codes:
+        0: "Message is valid"
+        1: "Message is invalid (expected for negative tests)"
+        2: "Test execution error"
+      output_format: "JSON status with validation details"
+
+    transport-test:
+      description: "Test transport layer functionality"
+      usage: "ecps-conformance transport-test --transport <TRANSPORT> --config <CONFIG_FILE>"
+      parameters:
+        transport:
+          required: true
+          description: "Transport layer to test"
+          values: ["dds", "grpc", "mqtt"]
+        config:
+          required: true
+          description: "Transport configuration file"
+          type: "file_path"
+        input:
+          required: false
+          description: "Input message file for transport test"
+          type: "file_path"
+      exit_codes:
+        0: "Transport test passed"
+        1: "Transport test failed"
+        2: "Transport not supported"
+        3: "Configuration error"
+
+    mep-query:
+      description: "Test Memory Exchange Protocol query behavior"
+      usage: "ecps-conformance mep-query --query <QUERY_FILE> --expected <EXPECTED_FILE>"
+      parameters:
+        query:
+          required: true
+          description: "QueryReq message file"
+          type: "file_path"
+        expected:
+          required: true
+          description: "Expected query results file"
+          type: "file_path"
+        tolerance:
+          required: false
+          description: "Similarity tolerance for result comparison"
+          type: "float"
+          default: 0.01
+      exit_codes:
+        0: "Query behavior correct"
+        1: "Query behavior incorrect"
+        2: "MEP not implemented"
+
+    eap-replay:
+      description: "Test EAP deterministic replay functionality"
+      usage: "ecps-conformance eap-replay --actions <ACTIONS_FILE> --state-hashes <HASHES_FILE>"
+      parameters:
+        actions:
+          required: true
+          description: "Sequence of EAP action messages"
+          type: "file_path"
+        state-hashes:
+          required: true
+          description: "Expected state hashes for each action"
+          type: "file_path"
+      exit_codes:
+        0: "Replay is deterministic"
+        1: "Replay is non-deterministic"
+        2: "EAP replay not implemented"
+
+    ltp-compression:
+      description: "Test LTP tensor compression/decompression integrity"
+      usage: "ecps-conformance ltp-compression --input <LTP_FILE> [--verify-integrity]"
+      parameters:
+        input:
+          required: true
+          description: "LTP message with compressed tensor"
+          type: "file_path"
+        verify-integrity:
+          required: false
+          description: "Verify compression/decompression integrity"
+          type: "boolean"
+          default: false
+      exit_codes:
+        0: "Compression test passed"
+        1: "Compression test failed"
+        2: "LTP compression not implemented"
+
+  # Output format specification
+  output_format:
+    type: "object"
+    required: ["status", "message", "details"]
+    properties:
+      status:
+        type: "string"
+        enum: ["PASS", "FAIL", "ERROR", "SKIP"]
+      message:
+        type: "string"
+        description: "Human-readable status message"
+      details:
+        type: "object"
+        description: "Implementation-specific details"
+        properties:
+          execution_time_ms:
+            type: "integer"
+            description: "Test execution time in milliseconds"
+          validation_errors:
+            type: "array"
+            items:
+              type: "string"
+            description: "List of validation error messages"
+          transport_metrics:
+            type: "object"
+            description: "Transport-specific metrics"
+          memory_usage:
+            type: "object"
+            description: "Memory usage statistics"
+
+  # Environment requirements
+  environment:
+    description: "Required environment setup for conformance testing"
+    requirements:
+      - "Implementation must be executable from command line"
+      - "Implementation must support binary protobuf input/output"
+      - "Implementation must emit structured JSON output"
+      - "Implementation must respect timeout constraints"
+      - "Implementation must handle missing/invalid input gracefully"
+    
+    optional_dependencies:
+      dds:
+        description: "DDS/RTPS implementation (e.g., Fast-DDS, CycloneDX)"
+        required_for: ["transport-test with DDS"]
+      grpc:
+        description: "gRPC runtime"
+        required_for: ["transport-test with gRPC", "mep-query"]
+      mqtt:
+        description: "MQTT broker connection"
+        required_for: ["transport-test with MQTT"]
+
+  # Certification levels and requirements
+  certification_levels:
+    level_1:
+      name: "Basic Conformance"
+      required_commands: ["validate-message"]
+      required_message_types: ["MCP", "LTP", "EAP"]
+      min_pass_rate: 100
+      
+    level_2:
+      name: "Standard Conformance"
+      required_commands: ["validate-message", "transport-test", "mep-query", "ltp-compression"]
+      required_transports: ["dds", "grpc"]
+      required_message_types: ["MCP", "LTP", "EAP", "QueryReq", "Ack"]
+      min_pass_rate: 95
+      
+    level_3:
+      name: "Full Conformance"
+      required_commands: ["validate-message", "transport-test", "mep-query", "eap-replay", "ltp-compression"]
+      required_transports: ["dds", "grpc", "mqtt"]
+      required_message_types: ["MCP", "LTP", "LTPChunk", "LTPAck", "EAP", "QueryReq", "Ack", "CloudEventAttributes"]
+      min_pass_rate: 90
+      additional_requirements:
+        - "OTLP observability integration"
+        - "TLS transport security"
+        - "Performance benchmarks"
+
+# Example implementation checklist
+implementation_checklist:
+  message_validation:
+    - "Parse binary protobuf messages correctly"
+    - "Validate message structure against schema"
+    - "Enforce size constraints (MCP ≤ 16 KiB, LTP ≤ 1 MiB)"
+    - "Validate version strings exactly"
+    - "Check CloudEvents ID format and uniqueness"
+    
+  transport_layer:
+    - "Support at least one transport binding"
+    - "Implement correct QoS profiles for DDS"
+    - "Support streaming for gRPC MEP queries"
+    - "Use QoS 1+ for MQTT"
+    - "Handle transport errors gracefully"
+    
+  behavioral_compliance:
+    - "MEP queries respect k-limiting and similarity thresholds"
+    - "LTP compression uses zstd correctly"
+    - "EAP actions are deterministically replayable"
+    - "CloudEvents IDs propagate as OTLP trace IDs"
+    
+  observability:
+    - "Emit OTLP traces for all operations"
+    - "Include required metrics (latency, bandwidth, errors)"
+    - "Use CloudEvents ID as trace_id"
+    - "Support structured logging"
+    
+  security:
+    - "Support TLS for WAN transports"
+    - "Validate OAuth2 tokens for CloudOp"
+    - "Implement proper access controls"
+    - "Secure credential management"

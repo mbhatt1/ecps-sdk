@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package ecps;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+// ECPS v1.0 Protocol Definitions
+// Embodied Cognition Protocol Stack
+// 
+// This file contains the canonical protocol definitions for all ECPS layers:
+// - L6 Cognition: Model Context Protocol (MCP v1.0)
+// - L5 Perception: Latent Tensor Protocol (LTP v0.9) 
+// - L6 Cognition: Memory Exchange Protocol (MEP v1.0)
+// - L7 Actuation: Embodied Action Protocol (EAP v0.1)
+
+// --- L6 Cognition: Model Context Protocol (MCP v1.0) ---
+message MCP {
+  string spec = 1;                    // MUST be "mcp/1.0"
+  string id = 2;                      // CloudEvents id mirror
+  string prompt = 3;                  // ≤16 KiB UTF-8
+  bytes tool_json = 4;                // Optional JSON blob representing tool schema
+  map<string, string> meta = 5;       // Arbitrary key-value metadata
+}
+
+// --- L5 Perception data: Latent Tensor Protocol (LTP v0.9) ---
+message LTPFrameHeader {
+  uint32 version = 1;                 // LTP protocol version (current: 1)
+  uint32 message_type = 2;            // Message type (1=DATA, 2=ACK, 3=CHUNK_START, 4=CHUNK_END)
+  uint32 payload_length = 3;          // Length of payload in bytes
+  uint32 sequence_number = 4;         // Sequence number for ordering
+  uint32 total_chunks = 5;            // Total number of chunks (0 if not chunked)
+  uint32 chunk_index = 6;             // Current chunk index (0-based)
+  bytes checksum = 7;                 // CRC32 checksum of payload
+  map<string, string> metadata = 8;   // Additional metadata
+}
+
+message LTP {
+  string spec = 1;                    // MUST be "ltp/0.9"
+  LTPFrameHeader header = 2;          // Frame header for wire protocol
+  bytes tensor_zstd = 3;              // zstd-compressed ND array
+  repeated uint32 shape = 4;          // e.g. [B,L,D] for Batch, Length, Dimension
+  string dtype = 5;                   // "f32" | "f16" | "u8" | "i8" | "i16" | "i32" | "i64" | "u16" | "u32" | "u64" | "f64" | "bool"
+  string frame_id = 6;                // Reference coordinate frame
+  uint64 timestamp_ns = 7;            // Nanoseconds since Unix epoch
+  uint32 compression_level = 8;       // zstd compression level used (1-22)
+  uint64 original_size = 9;           // Original tensor size before compression
+  map<string, string> attributes = 10; // Additional attributes
+}
+
+// LTP chunk for large tensor transmission
+message LTPChunk {
+  LTPFrameHeader header = 1;          // Frame header
+  bytes chunk_data = 2;               // Chunk of tensor data
+  bool is_final = 3;                  // True if this is the final chunk
+}
+
+// LTP acknowledgment message
+message LTPAck {
+  LTPFrameHeader header = 1;          // Frame header
+  bool success = 2;                   // Whether operation was successful
+  string message = 3;                 // Status message
+  uint32 received_chunks = 4;         // Number of chunks received
+  repeated uint32 missing_chunks = 5; // List of missing chunk indices
+}
+
+// --- L6 Cognition: Memory Exchange Protocol (MEP v1.0) ---
+service MemoryStore {
+  rpc Put(LTP) returns (Ack);
+  rpc Query(QueryReq) returns (stream LTP); // Servers MUST return at most k embeddings with cosine-sim >= min_sim
+}
+
+message QueryReq {
+  LTP query_embedding = 1;
+  uint32 k = 2;                       // Max number of embeddings to return
+  float min_sim = 3;                  // Minimum cosine similarity (0.0 to 1.0)
+  // Future extensions for range queries:
+  // google.protobuf.Timestamp start_time = 4;
+  // google.protobuf.Timestamp end_time = 5;
+  // repeated string frame_ids = 6;
+}
+
+message Ack {
+  bool success = 1;
+  string message = 2;
+}
+
+// --- L7 Actuation: Embodied Action Protocol (EAP v0.1) ---
+message EAP {
+  string spec = 1;                    // MUST be "eap/0.1"
+  string id = 2;                      // CloudEvents id mirror
+  bytes state_sha = 3;                // SHA-256 of perceptual snapshot
+
+  oneof body {
+    RobotPose set_pose = 10;
+    GripperOp gripper = 11;
+    CloudOp cloud = 12;
+    SimStep sim = 13;
+    NavigateOp navigate = 14;         // Navigation command
+    ManipulateOp manipulate = 15;     // Manipulation command
+    // Add other action types here
+  }
+
+  map<string, string> meta = 20;      // "safety":"stop_on_fail", etc.
+}
+
+// Nested messages for EAP `oneof body`
+message RobotPose {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+  double qw = 4;                      // Quaternion w component
+  double qx = 5;                      // Quaternion x component
+  double qy = 6;                      // Quaternion y component
+  double qz = 7;                      // Quaternion z component
+  string frame_id = 8;                // Reference frame (e.g., "base_link", "map")
+  uint64 timestamp_ns = 9;            // Timestamp for pose validity
+}
+
+message GripperOp {
+  enum GripperCommand {
+    GRIPPER_COMMAND_UNSPECIFIED = 0;
+    OPEN = 1;
+    CLOSE = 2;
+    GRIP = 3;                         // Attempt to grip with force feedback
+  }
+  GripperCommand command = 1;
+  float position = 2;                 // 0.0 (closed) to 1.0 (open)
+  float force_limit = 3;              // Force limit in Newtons
+}
+
+message CloudOp {
+  string api_name = 1;                // e.g., "object_detection_service"
+  string method_name = 2;             // e.g., "detect_objects"
+  bytes json_payload = 3;             // JSON payload for external API
+  bool requires_oauth2 = 4;           // Flag for OAuth 2 bearer token requirement
+}
+
+message SimStep {
+  double duration_s = 1;              // Duration to step the simulation
+  uint32 physics_steps = 2;           // Number of physics simulation steps
+  bool render_frame = 3;              // Whether to render a frame
+}
+
+message NavigateOp {
+  RobotPose target_pose = 1;          // Target pose to navigate to
+  float max_velocity = 2;             // Maximum velocity (m/s)
+  float tolerance = 3;                // Position tolerance (meters)
+  string planner_id = 4;              // Navigation planner to use
+}
+
+message ManipulateOp {
+  enum ManipulationType {
+    MANIPULATION_TYPE_UNSPECIFIED = 0;
+    PICK = 1;
+    PLACE = 2;
+    PICK_AND_PLACE = 3;
+    PUSH = 4;
+    PULL = 5;
+  }
+  ManipulationType type = 1;
+  RobotPose target_pose = 2;          // Target pose for manipulation
+  string object_id = 3;               // Identifier for target object
+  float approach_distance = 4;        // Distance to approach before manipulation
+  float force_threshold = 5;          // Force threshold for contact detection
+}
+
+// --- CloudEvents Integration ---
+// All ECPS messages mirror CloudEvents attributes for tracing
+message CloudEventAttributes {
+  string id = 1;                      // Unique event identifier
+  string source = 2;                  // Event source URI
+  string type = 3;                    // Event type
+  string specversion = 4;             // CloudEvents spec version
+  string datacontenttype = 5;         // Content type of data
+  google.protobuf.Timestamp time = 6; // Event timestamp
+  map<string, string> extensions = 7; // Extension attributes
+}

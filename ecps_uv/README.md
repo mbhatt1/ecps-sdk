@@ -6,6 +6,38 @@ The Python implementation of the Embodied Cognition Protocol Stack (ECPS) SDK.
 
 ECPS-UV is a complete, high-performance Python implementation of the Embodied Cognition Protocol Stack (ECPS) specification, utilizing modern Python libraries for asynchronous I/O operations and advanced security features.
 
+## 🔥 NEW: Unified API
+
+**Revolutionary Change**: The ECPS-UV SDK now provides a **single unified interface** for ALL protocols instead of separate handlers!
+
+### Quick Start with Unified API
+
+```python
+from ecps_uv.core import ECPSClient, EdgeLiteProfile
+
+# Single client for everything
+client = ECPSClient(EdgeLiteProfile())
+
+# Single method for ALL operations
+await client.send_unified("prompt", prompt="Analyze environment", tool_json=tools)
+await client.send_unified("memory_put", tensor_zstd=embedding, shape=[512], dtype="f32")
+await client.send_unified("action", action_type="set_pose", action_data=pose_data)
+await client.send_unified("perception", tensor_zstd=image_data, shape=[224,224,3])
+await client.send_unified("coordinate", coordination_type="task_allocation", agent_ids=["robot1", "robot2"])
+await client.send_unified("trust", trust_operation="verify_identity", identity="robot_001")
+await client.send_unified("telemetry", metric_type="system_health", metric_data=health_data)
+
+# Single listening interface
+await client.listen_unified(handlers)
+
+# Single querying interface
+results = await client.query_unified("memory", {"k": 10, "min_sim": 0.8})
+```
+
+**Benefits**: ✅ Single API ✅ Consistent interface ✅ Unified storage ✅ Simplified error handling ✅ Better observability
+
+See [`UNIFIED_API.md`](../UNIFIED_API.md) for complete documentation.
+
 ## Features
 
 ### Core Architecture

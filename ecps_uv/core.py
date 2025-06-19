@@ -218,6 +218,15 @@ class ECPSClient:
                 service_name="ecps-client",
                 loop=self.loop,
             )
+        
+        # Initialize unified protocol handler (consolidates all protocols)
+        from ecps_uv.cognition.unified import UEPHandler
+        
+        self.uep_handler = UEPHandler(
+            self.transport,
+            self.serializer,
+            self.telemetry
+        )
     
     async def send_mcp(self, prompt: str, tool_json: Optional[bytes] = None, meta: Optional[Dict[str, str]] = None):
         """
@@ -302,8 +311,119 @@ class ECPSClient:
         
         return message_id
     
+    # ========== UNIFIED API METHODS ==========
+    
+    async def send_unified(self, operation: str, **kwargs):
+        """
+        Send any type of ECPS message using the unified API.
+        
+        Args:
+            operation: Type of operation (prompt, memory_put, memory_query, action, etc.)
+            **kwargs: Operation-specific parameters
+            
+        Returns:
+            result: Operation result (varies by operation type)
+        """
+        if operation == "prompt":
+            return await self.uep_handler.send_prompt(
+                kwargs.get("prompt", ""),
+                kwargs.get("message_id"),
+                kwargs.get("tool_json"),
+                kwargs.get("meta"),
+                kwargs.get("qos")
+            )
+        elif operation == "memory_put":
+            return await self.uep_handler.store_memory(
+                kwargs.get("tensor_zstd", b""),
+                kwargs.get("shape", []),
+                kwargs.get("dtype", "f32"),
+                kwargs.get("frame_id", ""),
+                kwargs.get("timestamp_ns", 0),
+                kwargs.get("qos")
+            )
+        elif operation == "memory_query":
+            return await self.uep_handler.query_memory(
+                kwargs.get("query_embedding"),
+                kwargs.get("k", 10),
+                kwargs.get("min_sim", 0.7),
+                kwargs.get("qos")
+            )
+        elif operation == "action":
+            return await self.uep_handler.send_action(
+                kwargs.get("action_type", ""),
+                kwargs.get("action_data"),
+                kwargs.get("state_sha", b""),
+                kwargs.get("meta"),
+                kwargs.get("qos")
+            )
+        elif operation == "perception":
+            return await self.uep_handler.send_perception(
+                kwargs.get("tensor_zstd", b""),
+                kwargs.get("shape", []),
+                kwargs.get("dtype", "f32"),
+                kwargs.get("frame_id", ""),
+                kwargs.get("timestamp_ns", 0),
+                kwargs.get("qos")
+            )
+        elif operation == "coordinate":
+            return await self.uep_handler.coordinate_agents(
+                kwargs.get("coordination_type", ""),
+                kwargs.get("agent_ids", []),
+                kwargs.get("coordination_data"),
+                kwargs.get("meta"),
+                kwargs.get("qos")
+            )
+        elif operation == "trust":
+            return await self.uep_handler.manage_trust(
+                kwargs.get("trust_operation", ""),
+                kwargs.get("identity", ""),
+                kwargs.get("trust_data"),
+                kwargs.get("meta"),
+                kwargs.get("qos")
+            )
+        elif operation == "telemetry":
+            return await self.uep_handler.send_telemetry(
+                kwargs.get("metric_type", ""),
+                kwargs.get("metric_data"),
+                kwargs.get("timestamp_ns", 0),
+                kwargs.get("meta"),
+                kwargs.get("qos")
+            )
+        else:
+            raise ValueError(f"Unknown operation: {operation}")
+    
+    async def listen_unified(self, handlers: Dict[str, List[Callable]], qos: Optional[Dict[str, Any]] = None):
+        """
+        Listen for all types of ECPS messages using the unified API.
+        
+        Args:
+            handlers: Dictionary mapping operation types to handler functions
+            qos: Quality of Service parameters
+        """
+        await self.uep_handler.listen(handlers, qos)
+    
+    async def query_unified(self, data_type: str, query_params: Dict[str, Any]) -> List[Any]:
+        """
+        Query any type of stored data using the unified API.
+        
+        Args:
+            data_type: Type of data to query (memory, perception, action, etc.)
+            query_params: Query parameters
+            
+        Returns:
+            results: Query results
+        """
+        return await self.uep_handler.query_unified(data_type, query_params)
+    
+    async def get_unified_stats(self) -> Dict[str, Any]:
+        """Get unified statistics for all data types."""
+        return await self.uep_handler.get_stats()
+
     async def close(self):
         """Close the client and release resources."""
+        if hasattr(self, 'uep_handler') and self.uep_handler:
+            await self.uep_handler.close()
+            
         if self.transport:
             await self.transport.close()
         

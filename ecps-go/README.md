@@ -6,6 +6,38 @@ The Go implementation of the Embodied Cognitive-Physical Systems Unified Virtual
 
 This SDK provides a comprehensive framework for building distributed robotic and IoT systems with advanced security, logging, and hardware integration capabilities. The Go implementation maintains full parity with the Python version while leveraging Go's performance and concurrency features.
 
+## 🔥 NEW: Unified API
+
+**Revolutionary Change**: ECPS-Go now provides a **single unified interface** for ALL protocols instead of separate handlers!
+
+### Quick Start with Unified API
+
+```go
+import "github.com/ecps/ecps-go/pkg/cognition"
+
+// Single handler for everything
+uepHandler, err := cognition.NewUEPHandler(transport, serializer, telemetry, logger)
+
+// Single set of methods for ALL operations
+uepHandler.SendPrompt(ctx, prompt, messageID, toolJSON, meta, qos)
+uepHandler.StoreMemory(ctx, tensorZstd, shape, dtype, frameID, timestampNs, qos)
+uepHandler.SendAction(ctx, actionType, actionData, stateSHA, meta, qos)
+uepHandler.SendPerception(ctx, tensorZstd, shape, dtype, frameID, timestampNs, qos)
+uepHandler.CoordinateAgents(ctx, coordinationType, agentIDs, coordinationData, meta, qos)
+uepHandler.ManageTrust(ctx, trustOperation, identity, trustData, meta, qos)
+uepHandler.SendTelemetry(ctx, metricType, metricData, timestampNs, meta, qos)
+
+// Single listening interface
+uepHandler.Listen(ctx, handlers, qos)
+
+// Single querying interface
+results, err := uepHandler.QueryUnified(dataType, queryParams)
+```
+
+**Benefits**: ✅ Single API ✅ Consistent interface ✅ Unified storage ✅ Type safety ✅ Better observability
+
+See [`UNIFIED_API.md`](../UNIFIED_API.md) for complete documentation.
+
 ## Features
 
 ### Core Architecture

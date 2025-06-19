@@ -189,25 +189,27 @@ This layer is crucial for translating cognitive decisions into physical actions.
 \end{figure}
 
 \subsection{Trust and Security}
-The trust layer enforces comprehensive security mechanisms:
+The trust layer enforces comprehensive P2 security hardening mechanisms:
 \begin{itemize}
-  \item JWT-based authentication
-  \item Role-based access control (RBAC)
-  \item RSA signatures for message integrity
-  \item TLS encryption for secure communication
-  \item Identity management APIs
-  \item \textbf{Hardware Security Integration}: TPM 2.0, HSM (PKCS\#11), secure elements
-  \item \textbf{Hardware Attestation}: Device identity and platform attestation
-  \item \textbf{Secure Boot Validation}: Boot integrity verification
-  \item \textbf{Versioned Action Logging}: Multi-version log support (V1.0-V2.1)
-  \item \textbf{Log Migration Utilities}: Backward compatibility and conversion tools
+  \item \textbf{JWT Secret Rotation}: Automatic rotation of JWT signing secrets on startup and periodic intervals (24-hour default)
+  \item \textbf{Mutual TLS (mTLS)}: Certificate-based authentication between all ECPS nodes with automatic certificate generation
+  \item \textbf{HSM/TPM Integration}: Hardware security module and Trusted Platform Module support with enrollment scripts
+  \item \textbf{Protobuf Fuzzing}: Security testing using Atheris (Python) and libFuzzer (C++) for message parser validation
+  \item \textbf{Role-based access control (RBAC)}: Fine-grained permissions with configurable roles (robot\_operator, robot\_admin, system\_admin)
+  \item \textbf{Certificate Management}: Automatic CA certificate generation, node certificate signing, and validation
+  \item \textbf{Hardware Security Enrollment}: Automated scripts for HSM/TPM device detection, setup, and testing
+  \item \textbf{Security Status Monitoring}: Comprehensive security component status reporting and health checks
+  \item \textbf{Cross-Language Parity}: Identical security features implemented in both Python and Go with shared certificate formats
+  \item \textbf{Conformance Testing}: Security validation through comprehensive test suites and fuzzing frameworks
 \end{itemize}
 
-Security is a paramount concern in the design of ECPS. The trust layer ensures that all communications are secure and that only authorized entities can access sensitive information. By implementing robust authentication and authorization mechanisms, including hardware-backed security features, ECPS protects against unauthorized access and potential vulnerabilities.
+Security is a paramount concern in the design of ECPS. The P2 security hardening implementation ensures that all communications are secure through mutual TLS (mTLS) between nodes, with automatic JWT secret rotation providing robust authentication. The system protects against unauthorized access through comprehensive security mechanisms including protobuf fuzzing for message validation.
 
-The hardware security integration provides hardware-backed trust anchors using TPM 2.0, HSM modules, and secure elements. This enables cryptographically verifiable device identity, platform attestation, and secure boot validation. When hardware security modules are unavailable, the system gracefully falls back to software-based security while maintaining functionality.
+The JWT secret rotation system automatically generates new signing secrets on startup and rotates them periodically (default 24-hour intervals), ensuring that compromised tokens have limited validity windows. The mTLS implementation provides certificate-based authentication between all ECPS nodes, with automatic CA and node certificate generation.
 
-The versioned logging system supports multiple log formats (V1.0 through V2.1) with rich metadata, compression, encryption, and migration utilities. This ensures comprehensive audit trails and deterministic replay capabilities while maintaining backward compatibility with legacy systems.
+The HSM/TPM integration provides hardware-backed security when available, with automated enrollment scripts that detect, configure, and test hardware security modules. The system includes comprehensive protobuf fuzzing using Atheris (Python) and libFuzzer (C++) to validate message parser security and prevent buffer overflow vulnerabilities.
+
+Cross-language parity ensures that both Python and Go implementations provide identical security features, with shared certificate formats and compatible security protocols. The conformance testing framework validates security implementations across both language bindings.
 
 \begin{figure}[H]
 \centering
@@ -239,16 +241,18 @@ The Go implementation provides full feature parity with the Python SDK, offering
 \textbf{Key Features:}
 \begin{itemize}
   \item Complete 7-layer architecture implementation
-  \item Hardware security integration (TPM 2.0, HSM, secure elements)
-  \item Versioned logging system with migration utilities
-  \item Command-line tools for log management (\texttt{eaplog})
-  \item Comprehensive test coverage and examples
-  \item High-performance concurrent processing
+  \item P2 Security hardening with JWT secret rotation and mTLS
+  \item HSM/TPM integration with automated enrollment scripts
+  \item Protobuf fuzzing using libFuzzer for security validation
+  \item Conformance testing framework with test vector validation
+  \item Command-line tools for security management and testing
+  \item Comprehensive test coverage and security examples
+  \item High-performance concurrent processing with secure communication
 \end{itemize}
 
 Both the server and client are built with performance in mind, leveraging Go's concurrency features to handle multiple connections efficiently. This design allows for scalable deployments, accommodating varying workloads and user demands.
 
-The Go implementation achieves 95\% production readiness with complete Python-Go parity. Integration tests are included to ensure the reliability and correctness of the implementations, covering hardware security, log versioning, and all protocol layers. Additionally, comprehensive examples demonstrate real-world usage patterns, including hardware security integration and secure action logging.
+The Go implementation achieves complete Python-Go parity for all P2 security hardening features. Integration tests and conformance testing ensure the reliability and correctness of the implementations, covering JWT secret rotation, mTLS communication, HSM/TPM integration, and protobuf fuzzing. Additionally, comprehensive examples demonstrate real-world usage patterns, including security demos with automatic certificate generation and hardware security enrollment.
 
 \subsection{Configuration}
 The configuration of ECPS is designed to be flexible and user-friendly. It utilizes JSON and YAML formats for defining settings, allowing for easy customization and adaptation to different environments. Environment variables are also supported, enabling secure management of sensitive information such as API keys and credentials.
@@ -290,18 +294,40 @@ func main() {
 These snippets provide a glimpse into the ease of use and functionality offered by the ECPS framework, showcasing how developers can quickly get started with their projects.
 
 \section{Security and Trust}
-The security and trust mechanisms in ECPS are designed to protect sensitive data and ensure that only authorized users can access the system. The implementation of JWT authentication allows for secure user verification, while role-based access control (RBAC) ensures that users have the appropriate permissions for their actions.
+The P2 security hardening implementation in ECPS provides comprehensive protection through multiple layers of security mechanisms. JWT secret rotation ensures that authentication tokens are automatically refreshed on startup and at configurable intervals (default 24 hours), limiting the impact of potential token compromise.
 
-RSA signatures are used to verify the integrity of messages exchanged between components, providing an additional layer of security. TLS encryption is employed to secure communication channels, protecting data in transit from potential eavesdropping or tampering.
+Mutual TLS (mTLS) provides certificate-based authentication between all ECPS nodes, with automatic CA certificate generation and node certificate signing. This ensures that all inter-node communication is authenticated and encrypted, preventing unauthorized access and man-in-the-middle attacks.
 
-Identity management APIs facilitate the management of user identities and roles, allowing for dynamic updates and adjustments as needed. This comprehensive approach to security ensures that ECPS can be deployed in sensitive environments where data protection is paramount.
+HSM/TPM integration provides hardware-backed security when available, with automated enrollment scripts that detect, configure, and test hardware security modules. The system gracefully falls back to software-based security when hardware modules are unavailable.
+
+Protobuf fuzzing using Atheris (Python) and libFuzzer (C++) validates message parser security, preventing buffer overflow vulnerabilities and ensuring robust message handling. The conformance testing framework validates protocol compliance across both Python and Go implementations, ensuring consistent behavior and security properties.
+
+This comprehensive approach to security ensures that ECPS can be deployed in sensitive environments where data protection and system integrity are paramount.
+
+\section{Conformance Testing and Validation}
+The P1 specification and conformance testing implementation provides a comprehensive framework for validating ECPS protocol compliance across different implementations. The versioned specification in [`/spec/v1.0/`](spec/v1.0/) contains canonical protocol definitions, detailed documentation, and conformance test suites.
+
+The conformance test runner feeds standardized test vectors into implementations and validates their behavior against expected outcomes. Test cases cover all protocol layers including transport, perception, cognition, actuation, and trust, ensuring that implementations correctly handle message serialization, error conditions, and protocol state transitions.
+
+Key components of the conformance framework include:
+\begin{itemize}
+  \item \textbf{Canonical Protocol Definitions}: Versioned protobuf specifications in [`ecps.proto`](spec/v1.0/ecps.proto)
+  \item \textbf{Test Vector Generation}: Automated generation of test cases covering edge cases and error conditions
+  \item \textbf{Cross-Language Validation}: Testing both Python and Go implementations for behavioral consistency
+  \item \textbf{Security Conformance}: Validation of security features including JWT rotation and mTLS behavior
+  \item \textbf{Performance Benchmarks}: Standardized performance tests for latency and throughput validation
+\end{itemize}
+
+This conformance framework ensures that ECPS implementations maintain compatibility and correctness across different language bindings and deployment environments, providing confidence in protocol interoperability.
 
 \section{Future Directions}
-Looking ahead, several enhancements are planned for ECPS. Completing the implementation of transport protocols will further improve the system's flexibility and performance. Performance optimizations will focus on reducing latency and increasing throughput, ensuring that ECPS can handle demanding applications.
+With the completion of P1 (specification and conformance testing) and P2 (security hardening), ECPS now provides a robust foundation for embodied cognition applications. Future enhancements will focus on expanding the ecosystem and improving performance.
 
-Cross-language support is also a priority, enabling seamless integration with other programming languages and frameworks. Advanced security features will be developed to address emerging threats and vulnerabilities, ensuring that ECPS remains a secure choice for developers.
+Performance optimizations will target reducing latency and increasing throughput, particularly for high-frequency sensor data processing and real-time action execution. Advanced transport protocol implementations will further improve the system's flexibility and scalability.
 
-Finally, the development of ecosystem tools for debugging and monitoring will enhance the usability of ECPS, providing developers with the resources they need to maintain and optimize their applications effectively.
+Extended cross-language support beyond Python and Go is planned, enabling seamless integration with other programming languages and frameworks commonly used in robotics and AI development. Additional security features will be developed to address emerging threats and vulnerabilities, building upon the solid P2 security foundation.
+
+The development of ecosystem tools for debugging, monitoring, and visualization will enhance the usability of ECPS, providing developers with comprehensive resources for maintaining and optimizing their embodied cognition applications in production environments.
 
 \section{Conclusion}
 ECPS is a comprehensive, secure, and extensible framework for embodied cognition, supporting multi-layered protocols, security, and modular design for future research and deployment. Its architecture and implementation provide a solid foundation for developing advanced robotic and AI systems, paving the way for innovative applications in various fields.

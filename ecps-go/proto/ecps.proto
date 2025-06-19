@@ -7,15 +7,17 @@ option go_package = "github.com/ecps/ecps-go/proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
+// ECPS v1.0 Protocol Definitions
+// Canonical specification: /spec/v1.0/ecps.proto
+// This file should be kept in sync with the canonical specification
+
 // --- L6 Cognition: Model Context Protocol (MCP v1.0) ---
 message MCP {
-  string spec = "mcp/1.0"; // MUST take the form "mcp/1.0"
-  string id = 1;           // CloudEvents id mirror
-  string prompt = 2;       // ≤16 KiB UTF-8
-  // tool_call as a JSON blob. It's best practice to define a specific Protobuf message
-  // if the structure is known. For truly arbitrary JSON, use bytes or string.
-  bytes tool_json = 3;     // Optional JSON blob representing tool schema, if any
-  map<string, string> meta = 4;
+  string spec = 1;                    // MUST be "mcp/1.0"
+  string id = 2;                      // CloudEvents id mirror
+  string prompt = 3;                  // ≤16 KiB UTF-8
+  bytes tool_json = 4;                // Optional JSON blob representing tool schema
+  map<string, string> meta = 5;       // Arbitrary key-value metadata
 }
 
 // --- L5 Perception data: Latent Tensor Protocol (LTP v0.9) ---

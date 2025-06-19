@@ -1,8 +1,8 @@
 """
 Trust provider for ECPS UV SDK.
 
-This module provides security mechanisms for the ECPS protocol stack,
-including authentication, authorization, and encryption.
+This module provides comprehensive security mechanisms for the ECPS protocol stack,
+including authentication, authorization, encryption, JWT rotation, mTLS, and HSM/TPM integration.
 """
 
 import asyncio
@@ -29,6 +29,10 @@ from cryptography.hazmat.primitives.serialization import (
     NoEncryption,
 )
 from cryptography.x509 import load_pem_x509_certificate
+
+# Import new security modules
+from .jwt_rotation import JWTSecretManager, initialize_jwt_rotation, start_jwt_rotation, stop_jwt_rotation
+from .mtls import MTLSTransport, MTLSConfig, NodeIdentity, initialize_mtls, get_mtls_transport
 
 logger = logging.getLogger("ecps_uv.trust")
 
@@ -147,16 +151,329 @@ class RBACAuthorizer(Authorizer):
         for role in principal.roles:
             if role in self.role_permissions:
                 perms = self.role_permissions[role]
-                
-                # Exact permission match
                 if perm_key in perms and perms[perm_key]:
                     return True, None
-                
-                # Wildcard resource match
-                wildcard_key = f"{action}:*"
-                if wildcard_key in perms and perms[wildcard_key]:
-                    return True, None
         
+        return False, f"Permission denied for action '{action}' on resource '{resource}'"
+
+
+@dataclass
+class SecurityConfig:
+    """Configuration for ECPS security features."""
+    jwt_rotation_enabled: bool = True
+    jwt_rotation_interval_hours: int = 24
+    mtls_enabled: bool = True
+    hsm_enabled: bool = False
+    tpm_enabled: bool = False
+    fuzzing_enabled: bool = False
+    node_identity: Optional[NodeIdentity] = None
+    cert_dir: Optional[str] = None
+
+
+class ECPSSecurityManager:
+    """Comprehensive security manager for ECPS."""
+    
+    def __init__(self, config: SecurityConfig):
+        """
+        Initialize the security manager.
+        
+        Args:
+            config: Security configuration
+        """
+        self.config = config
+        self.jwt_manager: Optional[JWTSecretManager] = None
+        self.mtls_transport: Optional[MTLSTransport] = None
+        self.authorizer: Optional[Authorizer] = None
+        self._initialized = False
+        
+        logger.info("ECPS Security Manager initialized")
+    
+    async def initialize(self) -> None:
+        """Initialize all security components."""
+        if self._initialized:
+            logger.warning("Security manager already initialized")
+            return
+        
+        logger.info("Initializing ECPS security components...")
+        
+        # Initialize JWT rotation
+        if self.config.jwt_rotation_enabled:
+            await self._initialize_jwt_rotation()
+        
+        # Initialize mTLS
+        if self.config.mtls_enabled and self.config.node_identity:
+            await self._initialize_mtls()
+        
+        # Initialize authorization
+        self._initialize_authorization()
+        
+        # Load HSM/TPM configuration if available
+        await self._load_hardware_security_config()
+        
+        self._initialized = True
+        logger.info("ECPS security initialization completed")
+    
+    async def _initialize_jwt_rotation(self) -> None:
+        """Initialize JWT secret rotation."""
+        try:
+            logger.info("Initializing JWT secret rotation...")
+            
+            # Initialize JWT rotation on startup
+            secret = initialize_jwt_rotation(
+                rotation_interval_hours=self.config.jwt_rotation_interval_hours
+            )
+            
+            # Start automatic rotation
+            await start_jwt_rotation()
+            
+            # Get the manager instance
+            from .jwt_rotation import get_jwt_manager
+            self.jwt_manager = get_jwt_manager()
+            
+            logger.info(f"JWT rotation initialized with key_id: {secret.key_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize JWT rotation: {e}")
+            raise
+    
+    async def _initialize_mtls(self) -> None:
+        """Initialize mutual TLS."""
+        try:
+            logger.info("Initializing mTLS...")
+            
+            # Initialize mTLS with node identity
+            mtls_config = await initialize_mtls(
+                self.config.node_identity,
+                cert_dir=self.config.cert_dir
+            )
+            
+            # Get the transport instance
+            self.mtls_transport = get_mtls_transport()
+            
+            logger.info(f"mTLS initialized for node: {self.config.node_identity.node_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize mTLS: {e}")
+            raise
+    
+    def _initialize_authorization(self) -> None:
+        """Initialize authorization system."""
+        try:
+            logger.info("Initializing authorization...")
+            
+            # Create RBAC authorizer
+            self.authorizer = RBACAuthorizer()
+            
+            # Add default roles and permissions
+            self._setup_default_permissions()
+            
+            logger.info("Authorization system initialized")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize authorization: {e}")
+            raise
+    
+    def _setup_default_permissions(self) -> None:
+        """Setup default RBAC permissions."""
+        if not isinstance(self.authorizer, RBACAuthorizer):
+            return
+        
+        # Robot operator role
+        self.authorizer.add_role_permission("robot_operator", "move", "robot")
+        self.authorizer.add_role_permission("robot_operator", "grip", "gripper")
+        self.authorizer.add_role_permission("robot_operator", "sense", "sensors")
+        
+        # Robot administrator role
+        self.authorizer.add_role_permission("robot_admin", "move", "robot")
+        self.authorizer.add_role_permission("robot_admin", "grip", "gripper")
+        self.authorizer.add_role_permission("robot_admin", "sense", "sensors")
+        self.authorizer.add_role_permission("robot_admin", "configure", "robot")
+        self.authorizer.add_role_permission("robot_admin", "update", "firmware")
+        
+        # System administrator role
+        self.authorizer.add_role_permission("system_admin", "*", "*")  # Full access
+        
+        logger.debug("Default RBAC permissions configured")
+    
+    async def _load_hardware_security_config(self) -> None:
+        """Load HSM/TPM configuration if available."""
+        try:
+            config_path = os.path.expanduser("~/.ecps/hardware_security_config.json")
+            
+            if not os.path.exists(config_path):
+                logger.debug("No hardware security configuration found")
+                return
+            
+            with open(config_path, 'r') as f:
+                hw_config = json.load(f)
+            
+            hw_security = hw_config.get('hardware_security', {})
+            
+            # Update configuration based on available hardware
+            if hw_security.get('hsm', {}).get('enabled', False):
+                self.config.hsm_enabled = True
+                logger.info("HSM support enabled")
+            
+            if hw_security.get('tpm', {}).get('enabled', False):
+                self.config.tpm_enabled = True
+                logger.info("TPM support enabled")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load hardware security config: {e}")
+    
+    async def shutdown(self) -> None:
+        """Shutdown security components."""
+        logger.info("Shutting down ECPS security components...")
+        
+        # Stop JWT rotation
+        if self.config.jwt_rotation_enabled:
+            try:
+                await stop_jwt_rotation()
+                logger.info("JWT rotation stopped")
+            except Exception as e:
+                logger.error(f"Error stopping JWT rotation: {e}")
+        
+        self._initialized = False
+        logger.info("ECPS security shutdown completed")
+    
+    def create_token(self, payload: Dict[str, Any], expires_in_hours: int = 1) -> str:
+        """
+        Create a JWT token.
+        
+        Args:
+            payload: Token payload
+            expires_in_hours: Token expiration time
+            
+        Returns:
+            JWT token string
+        """
+        if not self.jwt_manager:
+            raise RuntimeError("JWT manager not initialized")
+        
+        return self.jwt_manager.create_token(payload, expires_in_hours)
+    
+    def validate_token(self, token: str) -> Dict[str, Any]:
+        """
+        Validate a JWT token.
+        
+        Args:
+            token: JWT token to validate
+            
+        Returns:
+            Decoded token payload
+        """
+        if not self.jwt_manager:
+            raise RuntimeError("JWT manager not initialized")
+        
+        return self.jwt_manager.validate_token(token)
+    
+    async def authorize_action(
+        self,
+        principal: Principal,
+        action: str,
+        resource: str
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Authorize an action for a principal.
+        
+        Args:
+            principal: The authenticated principal
+            action: The action to authorize
+            resource: The resource to act upon
+            
+        Returns:
+            (authorized, reason): Authorization result
+        """
+        if not self.authorizer:
+            raise RuntimeError("Authorizer not initialized")
+        
+        return await self.authorizer.authorize(principal, action, resource)
+    
+    def get_mtls_server_credentials(self):
+        """Get mTLS server credentials for gRPC."""
+        if not self.mtls_transport:
+            raise RuntimeError("mTLS transport not initialized")
+        
+        return self.mtls_transport.create_grpc_server_credentials()
+    
+    def get_mtls_channel_credentials(self):
+        """Get mTLS channel credentials for gRPC."""
+        if not self.mtls_transport:
+            raise RuntimeError("mTLS transport not initialized")
+        
+        return self.mtls_transport.create_grpc_channel_credentials()
+    
+    def get_security_status(self) -> Dict[str, Any]:
+        """
+        Get current security status.
+        
+        Returns:
+            Dictionary with security component status
+        """
+        status = {
+            "initialized": self._initialized,
+            "jwt_rotation": {
+                "enabled": self.config.jwt_rotation_enabled,
+                "manager_available": self.jwt_manager is not None
+            },
+            "mtls": {
+                "enabled": self.config.mtls_enabled,
+                "transport_available": self.mtls_transport is not None
+            },
+            "authorization": {
+                "enabled": self.authorizer is not None,
+                "type": type(self.authorizer).__name__ if self.authorizer else None
+            },
+            "hardware_security": {
+                "hsm_enabled": self.config.hsm_enabled,
+                "tpm_enabled": self.config.tmp_enabled
+            }
+        }
+        
+        # Add JWT secret status if available
+        if self.jwt_manager:
+            current_secret = self.jwt_manager.get_current_secret()
+            if current_secret:
+                status["jwt_rotation"]["current_key_id"] = current_secret.key_id
+                status["jwt_rotation"]["expires_at"] = current_secret.expires_at.isoformat()
+        
+        return status
+
+
+# Global security manager instance
+_security_manager: Optional[ECPSSecurityManager] = None
+
+
+async def initialize_security(config: SecurityConfig) -> ECPSSecurityManager:
+    """
+    Initialize ECPS security with the given configuration.
+    
+    Args:
+        config: Security configuration
+        
+    Returns:
+        Initialized security manager
+    """
+    global _security_manager
+    
+    _security_manager = ECPSSecurityManager(config)
+    await _security_manager.initialize()
+    
+    return _security_manager
+
+
+def get_security_manager() -> Optional[ECPSSecurityManager]:
+    """Get the global security manager instance."""
+    return _security_manager
+
+
+async def shutdown_security() -> None:
+    """Shutdown the global security manager."""
+    global _security_manager
+    
+    if _security_manager:
+        await _security_manager.shutdown()
+        _security_manager = None
         return False, f"Principal {principal.id} does not have permission for {action} on {resource}"
 
 

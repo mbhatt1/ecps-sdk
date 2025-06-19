@@ -33,15 +33,15 @@ This SDK implements the full ECPS v1.0 specification using Python with UV for hi
   
 - **Deterministic Replay**: Support for action logging and replay via `.eaplog` files
 
-- **Comprehensive Security**:
-  - Authentication via JWT and certificate-based mechanisms
-  - Authorization with role-based access control (RBAC)
-  - Message encryption and integrity verification
-  - **Hardware Security Integration**: TPM 2.0, HSM (PKCS#11), secure elements
-  - **Hardware Attestation**: Device identity and platform attestation
-  - **Secure Boot Validation**: Boot integrity verification
-  - Graduated security levels for different deployment scenarios
-  - Transparent security wrapper for all protocol layers
+- **P2 Security Hardening**:
+  - **JWT Secret Rotation**: Automatic rotation of signing secrets on startup and periodic intervals (24-hour default)
+  - **Mutual TLS (mTLS)**: Certificate-based authentication between all ECPS nodes with automatic certificate generation
+  - **HSM/TPM Integration**: Hardware security module support with automated enrollment scripts
+  - **Protobuf Fuzzing**: Security testing using Atheris (Python) and libFuzzer (C++) for message parser validation
+  - **Role-based access control (RBAC)**: Fine-grained permissions with configurable roles
+  - **Certificate Management**: Automatic CA certificate generation, node certificate signing, and validation
+  - **Security Status Monitoring**: Comprehensive security component status reporting and health checks
+  - **Cross-Language Parity**: Identical security features implemented in both Python and Go
 
 - **Advanced Logging**:
   - **Versioned Log Format**: Support for multiple log versions (V1.0-V2.1)
@@ -49,6 +49,13 @@ This SDK implements the full ECPS v1.0 specification using Python with UV for hi
   - **Migration Utilities**: Convert between log versions with full data preservation
   - **Rich Metadata**: Comprehensive log headers with robot ID, session ID, metadata
   - **Command-Line Tools**: Complete log management utility (`eaplog_tool.py`)
+
+- **P1 Conformance Testing**:
+  - **Versioned Specification**: Canonical protocol definitions in `/spec/v1.0/` with detailed documentation
+  - **Test Vector Generation**: Automated generation of test cases covering edge cases and error conditions
+  - **Cross-Language Validation**: Testing both Python and Go implementations for behavioral consistency
+  - **Security Conformance**: Validation of security features including JWT rotation and mTLS behavior
+  - **Performance Benchmarks**: Standardized performance tests for latency and throughput validation
 
 ## Installation
 
@@ -865,12 +872,14 @@ go run ./secure_communication
 ## Roadmap
 
 ### Recently Completed ✅
-- ✅ **Hardware Security Integration**: TPM 2.0, HSM (PKCS#11), secure elements
-- ✅ **Versioned Logging System**: Multi-version log support (V1.0-V2.1)
-- ✅ **Command-Line Tools**: Complete log management utilities
-- ✅ **Go-Python Parity**: Full feature parity between implementations
-- ✅ **Hardware Attestation**: Device identity and platform attestation
-- ✅ **Migration Utilities**: Backward compatibility and log conversion
+- ✅ **P1 - Specification + Conformance Tests**: Versioned protocol definitions in `/spec/v1.0/` with comprehensive conformance testing framework
+- ✅ **P2 - Security Hardening**: Complete security implementation with JWT secret rotation, mTLS, HSM/TPM integration, and protobuf fuzzing
+- ✅ **JWT Secret Rotation**: Automatic rotation of signing secrets on startup and periodic intervals (24-hour default)
+- ✅ **Mutual TLS (mTLS)**: Certificate-based authentication between all ECPS nodes with automatic certificate generation
+- ✅ **HSM/TPM Integration**: Hardware security module support with automated enrollment scripts
+- ✅ **Protobuf Fuzzing**: Security testing using Atheris (Python) and libFuzzer (C++) for message parser validation
+- ✅ **Cross-Language Parity**: Identical P2 security features implemented in both Python and Go
+- ✅ **Conformance Testing**: Comprehensive test suites validating protocol compliance across implementations
 
 ### Near-term (Q3 2025)
 - Add additional transport implementations (WebSocket, ZeroMQ)

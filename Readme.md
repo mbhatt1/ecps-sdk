@@ -57,6 +57,13 @@ This SDK implements the full ECPS v1.0 specification using Python with UV for hi
   - **Security Conformance**: Validation of security features including JWT rotation and mTLS behavior
   - **Performance Benchmarks**: Standardized performance tests for latency and throughput validation
 
+- **Third-Party Integration**:
+  - **Published Schema Files**: Protocol Buffer definitions in `/spec/proto/` for generating language bindings
+  - **OpenAPI Specification**: REST API definitions in `/spec/openapi/` for HTTP-based integrations
+  - **Automated CI/CD**: GitHub Actions workflows for generating and publishing language bindings
+  - **Multi-Language Support**: Automated bindings for Python, Go, JavaScript/TypeScript, C++, and Java
+  - **Package Distribution**: Published packages for easy integration in third-party projects
+
 ## Installation
 
 ### Python Installation
@@ -340,6 +347,84 @@ func main() {
     log.Println("Client completed")
 }
 ```
+
+## Third-Party Integration
+
+ECPS provides comprehensive support for third-party implementations through published schema files and automated language binding generation.
+
+### Published Schema Files
+
+#### Protocol Buffer Definitions
+The canonical Protocol Buffer definitions are available in [`/spec/proto/`](spec/proto/):
+
+```bash
+# Clone the repository to access schema files
+git clone https://github.com/ecps/ecps.git
+cd ecps/spec/proto
+
+# Generate bindings for your language
+protoc --python_out=./generated --grpc_python_out=./generated ecps.proto
+protoc --go_out=./generated --go-grpc_out=./generated ecps.proto
+protoc --js_out=./generated --grpc-web_out=./generated ecps.proto
+```
+
+#### OpenAPI Specification
+REST API definitions are available in [`/spec/openapi/ecps-api.yaml`](spec/openapi/ecps-api.yaml) for HTTP-based integrations:
+
+```bash
+# Generate client libraries using OpenAPI Generator
+openapi-generator-cli generate -i spec/openapi/ecps-api.yaml -g python -o ./python-client
+openapi-generator-cli generate -i spec/openapi/ecps-api.yaml -g typescript-fetch -o ./ts-client
+openapi-generator-cli generate -i spec/openapi/ecps-api.yaml -g java -o ./java-client
+```
+
+### Pre-built Language Bindings
+
+#### Python
+```bash
+pip install ecps-proto
+```
+
+#### Go
+```bash
+go get github.com/ecps/ecps-proto-go
+```
+
+#### JavaScript/TypeScript
+```bash
+npm install @ecps/proto
+```
+
+#### Java
+```xml
+<dependency>
+    <groupId>org.ecps</groupId>
+    <artifactId>ecps-proto</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+### Local Binding Generation
+
+Use the provided script to generate bindings locally:
+
+```bash
+# Generate bindings for specific languages
+./scripts/generate-bindings.sh python go
+
+# Generate bindings for all supported languages
+./scripts/generate-bindings.sh all
+
+# Show available options
+./scripts/generate-bindings.sh
+```
+
+### Third-Party Implementation Guidelines
+
+1. **Protocol Compliance**: Implement all required protocol layers as specified in [`/spec/v1.0/docs/protocol-specification.md`](spec/v1.0/docs/protocol-specification.md)
+2. **Security Requirements**: Implement P2 security hardening features (JWT rotation, mTLS, HSM/TPM support)
+3. **Conformance Testing**: Use the test suite in [`/spec/v1.0/conformance/`](spec/v1.0/conformance/) to validate implementation
+4. **Cross-Language Compatibility**: Ensure interoperability with existing Python and Go implementations
 
 ## Command-Line Tools
 

@@ -135,7 +135,58 @@ class SecureRobotAgent:
             
             if sender != self.device_id:  # Don't process our own distributions
                 logger.info(f"Received key distribution from {sender}: {key_id}")
-                # In a real implementation, you'd validate and store the public key
+                
+                # Validate and store the public key
+                try:
+                    # Extract the public key from the message
+                    public_key_data = message.get("public_key")
+                    if not public_key_data:
+                        logger.error("No public key data in distribution message")
+                        return
+                    
+                    # Validate the public key format
+                    from cryptography.hazmat.primitives import serialization
+                    try:
+                        public_key = serialization.load_pem_public_key(
+                            public_key_data.encode() if isinstance(public_key_data, str) else public_key_data
+                        )
+                        logger.info(f"Successfully validated public key from {sender}")
+                    except Exception as e:
+                        logger.error(f"Invalid public key format from {sender}: {e}")
+                        return
+                    
+                    # Store the validated public key
+                    if hasattr(self, 'key_manager') and self.key_manager:
+                        # Store in key manager if available
+                        metadata = {
+                            "sender": sender,
+                            "key_id": key_id,
+                            "received_at": time.time(),
+                            "key_type": "public",
+                            "algorithm": "RSA"
+                        }
+                        
+                        # Store the public key
+                        await self.key_manager.store_key(
+                            f"peer_{sender}_{key_id}",
+                            public_key_data,
+                            metadata
+                        )
+                        logger.info(f"Stored public key {key_id} from {sender}")
+                    else:
+                        # Fallback: store in a simple dictionary
+                        if not hasattr(self, 'peer_keys'):
+                            self.peer_keys = {}
+                        self.peer_keys[f"{sender}_{key_id}"] = {
+                            "public_key": public_key_data,
+                            "sender": sender,
+                            "key_id": key_id,
+                            "received_at": time.time()
+                        }
+                        logger.info(f"Stored public key {key_id} from {sender} in local cache")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to validate/store public key from {sender}: {e}")
                 
         except Exception as e:
             logger.error(f"Error handling key distribution: {e}")

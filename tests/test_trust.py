@@ -324,8 +324,36 @@ class TestSecureTransport(unittest.TestCase):
         
         # If using encryption, payload should be encrypted
         if self.trust_provider.trust_level >= TrustLevel.ENCRYPTION:
-            # In a real implementation, we would decrypt and verify content
-            pass
+            # Decrypt and verify the encrypted content
+            try:
+                # The payload should be a SecureMessage when encrypted
+                from ecps_uv.trust.secure_transport import SecureMessage
+                
+                # If the payload is bytes, try to deserialize it as a SecureMessage
+                if isinstance(sent_message.payload, bytes):
+                    import json
+                    secure_msg_dict = json.loads(sent_message.payload.decode('utf-8'))
+                    secure_msg = SecureMessage.from_dict(secure_msg_dict)
+                    
+                    # Verify signature if present
+                    if secure_msg.signature and hasattr(self.trust_provider, 'verify_message'):
+                        self.trust_provider.verify_message(secure_msg.message, secure_msg.signature)
+                    
+                    # Decrypt if encrypted
+                    if secure_msg.encrypted_key and secure_msg.iv:
+                        # This would normally use the private key to decrypt
+                        # For testing, we'll just verify the structure is correct
+                        self.assertIsNotNone(secure_msg.encrypted_key)
+                        self.assertIsNotNone(secure_msg.iv)
+                        self.assertEqual(len(secure_msg.iv), 16)  # AES block size
+                    
+                    # Verify the message type is correct
+                    self.assertEqual(secure_msg.message_type, type(test_message).__name__)
+                    
+            except Exception as e:
+                # If decryption fails, that's also a valid test result
+                # as it means encryption is actually happening
+                self.fail(f"Failed to process encrypted message: {e}")
         else:
             # For testing, payload is just serialized content
             self.assertEqual(

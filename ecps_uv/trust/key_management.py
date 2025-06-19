@@ -820,10 +820,88 @@ class KeyManager:
             return False
         
         try:
-            # This would require listing secrets in KMS, which varies by provider
-            # For now, we'll implement a basic version
-            logger.info("Key restoration from KMS would require provider-specific implementation")
-            return True
+            # Implement real key restoration from KMS
+            restored_count = 0
+            
+            if hasattr(self.kms_manager, 'list_keys'):
+                # Get list of keys from KMS
+                try:
+                    kms_keys = await self.kms_manager.list_keys()
+                    
+                    for key_info in kms_keys:
+                        key_id = key_info.get('key_id')
+                        if key_id and key_id.startswith('ecps-uv-'):
+                            # Extract our key ID
+                            our_key_id = key_id.replace('ecps-uv-', '')
+                            
+                            # Check if we already have this key
+                            if our_key_id not in self.keys:
+                                try:
+                                    # For asymmetric keys, we can't restore the private key from KMS
+                                    # But we can restore the metadata and public key
+                                    if key_info.get('key_type') == 'asymmetric':
+                                        # Create metadata entry
+                                        self.metadata[our_key_id] = KeyMetadata(
+                                            key_id=our_key_id,
+                                            key_type=key_info.get('algorithm', 'RSA'),
+                                            created_at=key_info.get('created_at', time.time()),
+                                            key_size=key_info.get('key_size', 2048),
+                                            usage=['encrypt', 'decrypt', 'sign', 'verify']
+                                        )
+                                        
+                                        # Mark as KMS-backed
+                                        self.kms_key_mapping[our_key_id] = key_id
+                                        
+                                        logger.info(f"Restored KMS key reference: {our_key_id}")
+                                        restored_count += 1
+                                        
+                                except Exception as e:
+                                    logger.warning(f"Failed to restore key {our_key_id}: {e}")
+                                    
+                except Exception as e:
+                    logger.warning(f"Failed to list KMS keys: {e}")
+            
+            # Also try to restore from local storage if available
+            if self.storage_path and os.path.exists(self.storage_path):
+                try:
+                    for filename in os.listdir(self.storage_path):
+                        if filename.endswith('.key'):
+                            key_id = filename[:-4]  # Remove .key extension
+                            
+                            if key_id not in self.keys:
+                                key_file = os.path.join(self.storage_path, filename)
+                                
+                                try:
+                                    with open(key_file, 'rb') as f:
+                                        encrypted_key = f.read()
+                                    
+                                    # Try to decrypt and restore
+                                    if self.master_password:
+                                        key_data = self._decrypt_key(encrypted_key, self.master_password)
+                                    else:
+                                        key_data = encrypted_key
+                                    
+                                    self.keys[key_id] = key_data
+                                    
+                                    # Try to restore metadata
+                                    metadata_file = os.path.join(self.storage_path, f"{key_id}.meta")
+                                    if os.path.exists(metadata_file):
+                                        with open(metadata_file, 'r') as f:
+                                            import json
+                                            meta_dict = json.load(f)
+                                            self.metadata[key_id] = KeyMetadata(**meta_dict)
+                                    
+                                    logger.info(f"Restored local key: {key_id}")
+                                    restored_count += 1
+                                    
+                                except Exception as e:
+                                    logger.warning(f"Failed to restore local key {key_id}: {e}")
+                                    
+                except Exception as e:
+                    logger.warning(f"Failed to scan local storage: {e}")
+            
+            logger.info(f"Key restoration completed: {restored_count} keys restored")
+            return restored_count > 0
             
         except Exception as e:
             logger.error(f"Failed to restore keys from KMS: {e}")

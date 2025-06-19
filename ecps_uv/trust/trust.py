@@ -556,18 +556,54 @@ class TrustProvider:
             
         # Note: RSA encryption is limited by key size
         # For large messages, use a hybrid approach with symmetric encryption
-        # This is a simplified version for demonstration
         
-        ciphertext = self.public_key.encrypt(
-            message,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
+        # Check if message is too large for direct RSA encryption
+        max_rsa_size = (self.public_key.key_size // 8) - 2 * (256 // 8) - 2  # OAEP overhead
+        
+        if len(message) <= max_rsa_size:
+            # Direct RSA encryption for small messages
+            ciphertext = self.public_key.encrypt(
+                message,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
             )
-        )
-        
-        return ciphertext
+            return ciphertext
+        else:
+            # Hybrid encryption for large messages
+            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+            import secrets
+            
+            # Generate AES key and IV
+            aes_key = secrets.token_bytes(32)  # 256-bit key
+            iv = secrets.token_bytes(16)  # 128-bit IV
+            
+            # Encrypt message with AES
+            cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
+            encryptor = cipher.encryptor()
+            
+            # Pad message to block size
+            block_size = 16
+            padding_length = block_size - (len(message) % block_size)
+            padded_message = message + bytes([padding_length] * padding_length)
+            
+            encrypted_message = encryptor.update(padded_message) + encryptor.finalize()
+            
+            # Encrypt AES key with RSA
+            encrypted_key = self.public_key.encrypt(
+                aes_key,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+            
+            # Return: encrypted_key_length + encrypted_key + iv + encrypted_message
+            result = len(encrypted_key).to_bytes(4, 'big') + encrypted_key + iv + encrypted_message
+            return result
 
     def decrypt_message(self, ciphertext: bytes) -> bytes:
         """
@@ -581,7 +617,47 @@ class TrustProvider:
         """
         if not self.private_key:
             raise ValueError("No private key available")
-            
+        
+        # Check if this is hybrid encryption (has length prefix)
+        max_rsa_size = (self.private_key.key_size // 8)
+        
+        if len(ciphertext) > max_rsa_size:
+            # Hybrid decryption
+            try:
+                # Extract encrypted key length
+                key_length = int.from_bytes(ciphertext[:4], 'big')
+                
+                if key_length <= max_rsa_size:  # Reasonable RSA key size
+                    # Extract components
+                    encrypted_key = ciphertext[4:4+key_length]
+                    iv = ciphertext[4+key_length:4+key_length+16]
+                    encrypted_message = ciphertext[4+key_length+16:]
+                    
+                    # Decrypt AES key with RSA
+                    aes_key = self.private_key.decrypt(
+                        encrypted_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    
+                    # Decrypt message with AES
+                    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+                    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
+                    decryptor = cipher.decryptor()
+                    
+                    padded_message = decryptor.update(encrypted_message) + decryptor.finalize()
+                    
+                    # Remove padding
+                    padding_length = padded_message[-1]
+                    return padded_message[:-padding_length]
+            except:
+                # Fall through to direct RSA decryption
+                pass
+        
+        # Direct RSA decryption
         plaintext = self.private_key.decrypt(
             ciphertext,
             padding.OAEP(

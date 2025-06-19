@@ -681,5 +681,172 @@ class A2ACoordinator:
     
     async def _handle_coordination_request(self, message: Dict[str, Any]):
         """Handle general coordination requests."""
-        # Placeholder for future coordination protocols
-        pass
+        try:
+            request_type = message.get("type")
+            sender_id = message.get("sender_id")
+            
+            if not request_type or not sender_id:
+                logger.warning("Invalid coordination request: missing type or sender_id")
+                return
+            
+            logger.debug(f"Handling coordination request: {request_type} from {sender_id}")
+            
+            if request_type == "capability_query":
+                # Handle capability queries
+                await self._handle_capability_query(message)
+                
+            elif request_type == "resource_request":
+                # Handle resource sharing requests
+                await self._handle_resource_request(message)
+                
+            elif request_type == "task_delegation":
+                # Handle task delegation requests
+                await self._handle_task_delegation(message)
+                
+            elif request_type == "status_sync":
+                # Handle status synchronization
+                await self._handle_status_sync(message)
+                
+            elif request_type == "coordination_handoff":
+                # Handle coordination handoff between agents
+                await self._handle_coordination_handoff(message)
+                
+            else:
+                logger.warning(f"Unknown coordination request type: {request_type}")
+                
+        except Exception as e:
+            logger.error(f"Error handling coordination request: {e}")
+    
+    async def _handle_capability_query(self, message: Dict[str, Any]):
+        """Handle capability query requests."""
+        sender_id = message.get("sender_id")
+        requested_capabilities = message.get("capabilities", [])
+        
+        # Check our capabilities
+        available_capabilities = []
+        for capability in requested_capabilities:
+            if capability in self.agent_capabilities.get(self.agent_id, []):
+                available_capabilities.append(capability)
+        
+        # Send response
+        response = {
+            "type": "capability_response",
+            "sender_id": self.agent_id,
+            "target_id": sender_id,
+            "available_capabilities": available_capabilities,
+            "timestamp": time.time()
+        }
+        
+        if self.transport:
+            await self.transport.publish(f"coordination/{sender_id}", response)
+    
+    async def _handle_resource_request(self, message: Dict[str, Any]):
+        """Handle resource sharing requests."""
+        sender_id = message.get("sender_id")
+        resource_type = message.get("resource_type")
+        amount = message.get("amount", 1)
+        
+        # Check if we can provide the resource
+        can_provide = False
+        if resource_type in ["cpu", "memory", "storage"]:
+            # Simple resource availability check
+            current_load = len(self.active_tasks)
+            if current_load < self.max_concurrent_tasks:
+                can_provide = True
+        
+        # Send response
+        response = {
+            "type": "resource_response",
+            "sender_id": self.agent_id,
+            "target_id": sender_id,
+            "resource_type": resource_type,
+            "available": can_provide,
+            "amount": amount if can_provide else 0,
+            "timestamp": time.time()
+        }
+        
+        if self.transport:
+            await self.transport.publish(f"coordination/{sender_id}", response)
+    
+    async def _handle_task_delegation(self, message: Dict[str, Any]):
+        """Handle task delegation requests."""
+        sender_id = message.get("sender_id")
+        task_data = message.get("task")
+        
+        if not task_data:
+            logger.warning("Task delegation request missing task data")
+            return
+        
+        # Check if we can accept the task
+        can_accept = len(self.active_tasks) < self.max_concurrent_tasks
+        
+        if can_accept:
+            # Accept the task
+            task_id = task_data.get("id", str(uuid.uuid4()))
+            self.active_tasks[task_id] = {
+                "id": task_id,
+                "data": task_data,
+                "delegated_from": sender_id,
+                "status": "accepted",
+                "timestamp": time.time()
+            }
+            
+            logger.info(f"Accepted delegated task {task_id} from {sender_id}")
+        
+        # Send response
+        response = {
+            "type": "delegation_response",
+            "sender_id": self.agent_id,
+            "target_id": sender_id,
+            "task_id": task_data.get("id"),
+            "accepted": can_accept,
+            "reason": None if can_accept else "capacity_exceeded",
+            "timestamp": time.time()
+        }
+        
+        if self.transport:
+            await self.transport.publish(f"coordination/{sender_id}", response)
+    
+    async def _handle_status_sync(self, message: Dict[str, Any]):
+        """Handle status synchronization requests."""
+        sender_id = message.get("sender_id")
+        
+        # Prepare our status
+        status = {
+            "type": "status_response",
+            "sender_id": self.agent_id,
+            "target_id": sender_id,
+            "active_tasks": len(self.active_tasks),
+            "max_tasks": self.max_concurrent_tasks,
+            "capabilities": self.agent_capabilities.get(self.agent_id, []),
+            "load": len(self.active_tasks) / self.max_concurrent_tasks,
+            "timestamp": time.time()
+        }
+        
+        if self.transport:
+            await self.transport.publish(f"coordination/{sender_id}", status)
+    
+    async def _handle_coordination_handoff(self, message: Dict[str, Any]):
+        """Handle coordination handoff requests."""
+        sender_id = message.get("sender_id")
+        handoff_type = message.get("handoff_type")
+        
+        # Handle different types of handoffs
+        if handoff_type == "leadership":
+            # Leadership handoff
+            can_accept = len(self.active_tasks) < self.max_concurrent_tasks // 2
+            
+            if can_accept:
+                logger.info(f"Accepting leadership handoff from {sender_id}")
+            
+            response = {
+                "type": "handoff_response",
+                "sender_id": self.agent_id,
+                "target_id": sender_id,
+                "handoff_type": handoff_type,
+                "accepted": can_accept,
+                "timestamp": time.time()
+            }
+            
+            if self.transport:
+                await self.transport.publish(f"coordination/{sender_id}", response)

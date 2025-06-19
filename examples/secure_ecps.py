@@ -173,14 +173,29 @@ async def run_server(args, trust_provider):
         # Extract principal from context if available
         principal_info = ""
         
-        # In a real implementation, we would extract the principal from the context
-        # For this example, we'll use the sender_id from the secure message
+        # Extract the principal from the security context
+        # Check if this message came through secure transport with identity context
         if hasattr(mcp_message, "meta") and mcp_message.meta:
-            sender_id = mcp_message.meta.get("sender_id")
-            if sender_id:
-                principal = trust_provider.get_principal(sender_id)
-                if principal:
-                    principal_info = f" from {principal.name} ({principal.id})"
+            # First try to get from security token
+            security_token = mcp_message.meta.get("security_token")
+            if security_token:
+                try:
+                    # Validate JWT and extract principal
+                    principal = await trust_provider.validate_jwt(security_token)
+                    if principal:
+                        principal_info = f" from authenticated user {principal.name} ({principal.id})"
+                except Exception as e:
+                    logger.warning(f"Failed to validate security token: {e}")
+            
+            # Fallback to sender_id if no security token
+            if not principal_info:
+                sender_id = mcp_message.meta.get("sender_id")
+                if sender_id:
+                    principal = trust_provider.get_principal(sender_id)
+                    if principal:
+                        principal_info = f" from {principal.name} ({principal.id})"
+                    else:
+                        principal_info = f" from unknown sender {sender_id}"
         
         logger.info(f"Received secure message{principal_info}: {mcp_message.prompt}")
         

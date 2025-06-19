@@ -409,13 +409,52 @@ func (h *LTPHandler) SplitLargeTensor(tensor *Tensor, maxSize int, axis int) ([]
 		copy(chunkShape, tensor.Shape)
 		chunkShape[axis] = uint32(end - i)
 
-		// Extract chunk data
-		// Note: In a real implementation, this would be more complex and would
-		// handle proper slicing of multi-dimensional arrays
-		// This is a simplified version that assumes contiguous memory layout
-		startIdx := i * otherElems * bytesPerElem
-		endIdx := end * otherElems * bytesPerElem
-		chunkData := tensor.Data[startIdx:endIdx]
+		// Extract chunk data with proper multi-dimensional array slicing
+		// Calculate the actual indices for multi-dimensional slicing
+		var chunkData []byte
+		
+		if len(tensor.Shape) == 1 {
+			// Simple 1D case
+			startIdx := i * bytesPerElem
+			endIdx := end * bytesPerElem
+			chunkData = tensor.Data[startIdx:endIdx]
+		} else {
+			// Multi-dimensional case - need to handle strided access
+			chunkSize := (end - i) * otherElems * bytesPerElem
+			chunkData = make([]byte, chunkSize)
+			
+			// Calculate strides for each dimension
+			strides := make([]int, len(tensor.Shape))
+			strides[len(strides)-1] = bytesPerElem
+			for j := len(strides) - 2; j >= 0; j-- {
+				strides[j] = strides[j+1] * int(tensor.Shape[j+1])
+			}
+			
+			// Copy data slice by slice along the chunking axis
+			chunkOffset := 0
+			for slice := i; slice < end; slice++ {
+				// Calculate the starting position for this slice
+				sliceStart := slice * strides[axis]
+				sliceSize := otherElems * bytesPerElem
+				
+				// Handle non-contiguous slices by copying smaller segments
+				if axis == len(tensor.Shape)-1 {
+					// Last dimension - can copy contiguously
+					copy(chunkData[chunkOffset:chunkOffset+sliceSize],
+						 tensor.Data[sliceStart:sliceStart+sliceSize])
+					chunkOffset += sliceSize
+				} else {
+					// Need to copy in smaller chunks to maintain proper layout
+					elementsPerSlice := int(otherElems)
+					for elem := 0; elem < elementsPerSlice; elem++ {
+						elemStart := sliceStart + elem*bytesPerElem
+						copy(chunkData[chunkOffset:chunkOffset+bytesPerElem],
+							 tensor.Data[elemStart:elemStart+bytesPerElem])
+						chunkOffset += bytesPerElem
+					}
+				}
+			}
+		}
 
 		// Create chunk tensor
 		chunk := &Tensor{

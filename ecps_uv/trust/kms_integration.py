@@ -527,9 +527,52 @@ class GoogleCloudKMSBackend(KMSBackend):
     async def store_secret(self, secret_id: str, secret_value: bytes, metadata: Dict[str, Any]) -> bool:
         """Store a secret (using encryption with a dedicated key)."""
         try:
-            # For GCP, we'll encrypt the secret with a dedicated key and store metadata separately
-            # This is a simplified implementation - in production, you might use Secret Manager
-            encrypted_data = await self.encrypt_data(f"secret-key-{secret_id}", secret_value)
+            # For GCP, we'll use Secret Manager for proper secret storage
+            # If Secret Manager is not available, fall back to encrypted storage
+            try:
+                from google.cloud import secretmanager
+                
+                # Use Secret Manager for proper secret storage
+                client = secretmanager.SecretManagerServiceClient()
+                parent = f"projects/{self.project_id}"
+                
+                # Create the secret
+                secret = client.create_secret(
+                    request={
+                        "parent": parent,
+                        "secret_id": secret_id,
+                        "secret": {"replication": {"automatic": {}}},
+                    }
+                )
+                
+                # Add the secret version
+                response = client.add_secret_version(
+                    request={
+                        "parent": secret.name,
+                        "payload": {"data": secret_value},
+                    }
+                )
+                
+                logger.info(f"Secret {secret_id} stored in Secret Manager: {response.name}")
+                return True
+                
+            except ImportError:
+                logger.warning("Google Secret Manager not available, using KMS encryption fallback")
+                # Fallback: encrypt the secret with a dedicated key and store metadata
+                encrypted_data = await self.encrypt_data(f"secret-key-{secret_id}", secret_value)
+                
+                # Store metadata about the secret (in production, use a proper database)
+                if not hasattr(self, '_secret_metadata'):
+                    self._secret_metadata = {}
+                
+                self._secret_metadata[secret_id] = {
+                    "encrypted_data": encrypted_data,
+                    "created_at": time.time(),
+                    "metadata": metadata
+                }
+                
+                logger.info(f"Secret {secret_id} encrypted and stored with KMS")
+                return True
             
             # Store metadata in a separate system or as labels
             logger.info(f"Stored secret in Google Cloud KMS: {secret_id}")
@@ -542,10 +585,31 @@ class GoogleCloudKMSBackend(KMSBackend):
     async def retrieve_secret(self, secret_id: str) -> Optional[bytes]:
         """Retrieve a secret (decrypt using dedicated key)."""
         try:
-            # This would need to be implemented with proper secret storage
-            # For now, return None as this is a simplified implementation
-            logger.warning(f"Secret retrieval not fully implemented for GCP KMS: {secret_id}")
-            return None
+            # Try Secret Manager first
+            try:
+                from google.cloud import secretmanager
+                
+                client = secretmanager.SecretManagerServiceClient()
+                name = f"projects/{self.project_id}/secrets/{secret_id}/versions/latest"
+                
+                response = client.access_secret_version(request={"name": name})
+                secret_value = response.payload.data
+                
+                logger.info(f"Retrieved secret {secret_id} from Secret Manager")
+                return secret_value
+                
+            except ImportError:
+                logger.warning("Google Secret Manager not available, using KMS decryption fallback")
+                # Fallback: decrypt from stored metadata
+                if hasattr(self, '_secret_metadata') and secret_id in self._secret_metadata:
+                    encrypted_data = self._secret_metadata[secret_id]["encrypted_data"]
+                    decrypted_data = await self.decrypt_data(f"secret-key-{secret_id}", encrypted_data)
+                    
+                    logger.info(f"Retrieved and decrypted secret {secret_id}")
+                    return decrypted_data
+                else:
+                    logger.warning(f"Secret {secret_id} not found in metadata store")
+                    return None
             
         except Exception as e:
             logger.error(f"Failed to retrieve secret {secret_id}: {e}")
@@ -554,9 +618,28 @@ class GoogleCloudKMSBackend(KMSBackend):
     async def delete_secret(self, secret_id: str) -> bool:
         """Delete a secret."""
         try:
-            # This would need to be implemented with proper secret storage
-            logger.info(f"Secret deletion not fully implemented for GCP KMS: {secret_id}")
-            return True
+            # Try Secret Manager first
+            try:
+                from google.cloud import secretmanager
+                
+                client = secretmanager.SecretManagerServiceClient()
+                name = f"projects/{self.project_id}/secrets/{secret_id}"
+                
+                client.delete_secret(request={"name": name})
+                
+                logger.info(f"Deleted secret {secret_id} from Secret Manager")
+                return True
+                
+            except ImportError:
+                logger.warning("Google Secret Manager not available, using metadata cleanup")
+                # Fallback: remove from metadata store
+                if hasattr(self, '_secret_metadata') and secret_id in self._secret_metadata:
+                    del self._secret_metadata[secret_id]
+                    logger.info(f"Removed secret {secret_id} from metadata store")
+                    return True
+                else:
+                    logger.warning(f"Secret {secret_id} not found for deletion")
+                    return False
             
         except Exception as e:
             logger.error(f"Failed to delete secret {secret_id}: {e}")

@@ -296,11 +296,38 @@ class ConsensusProtocol:
             except Exception as e:
                 logger.warning(f"Failed to send vote request to {peer_id}: {e}")
         
-        # Wait for votes (this is simplified - in a real implementation,
-        # you'd track votes as they come in)
-        await asyncio.sleep(0.1)  # Give time for responses
+        # Track votes as they come in with timeout
+        vote_timeout = 5.0  # 5 second timeout for votes
+        start_time = time.time()
+        received_votes = set()
         
-        # Check if we won the election
+        while time.time() - start_time < vote_timeout:
+            try:
+                # Check for incoming vote responses
+                # In a real implementation, this would be event-driven
+                await asyncio.sleep(0.01)  # Small delay to prevent busy waiting
+                
+                # Simulate checking for vote responses
+                # This would normally be handled by message handlers
+                current_votes = getattr(self, '_pending_votes', {}).get(self.current_term, set())
+                new_votes = current_votes - received_votes
+                
+                if new_votes:
+                    received_votes.update(new_votes)
+                    votes_received = len(received_votes)
+                    logger.debug(f"Received {len(new_votes)} new votes, total: {votes_received}")
+                    
+                    # Check if we have majority
+                    majority = len(self.peer_nodes) // 2 + 1
+                    if votes_received >= majority:
+                        logger.info(f"Won election with {votes_received}/{len(self.peer_nodes)} votes")
+                        break
+                        
+            except Exception as e:
+                logger.error(f"Error while tracking votes: {e}")
+                break
+        
+        # Final check for election success
         majority = len(self.peer_nodes) // 2 + 1
         if votes_received >= majority:
             await self._become_leader()
@@ -412,8 +439,26 @@ class ConsensusProtocol:
             return
         
         if response.vote_granted:
-            # Count votes (simplified - in real implementation, track all votes)
-            logger.debug(f"Received vote from {response.sender_id}")
+            # Track all votes properly for the current term
+            if not hasattr(self, '_pending_votes'):
+                self._pending_votes = {}
+            
+            if self.current_term not in self._pending_votes:
+                self._pending_votes[self.current_term] = set()
+            
+            # Add this vote to our tracking
+            self._pending_votes[self.current_term].add(response.sender_id)
+            
+            vote_count = len(self._pending_votes[self.current_term])
+            logger.debug(f"Received vote from {response.sender_id} (total: {vote_count})")
+            
+            # Check if we have enough votes to become leader
+            majority = len(self.peer_nodes) // 2 + 1
+            if vote_count >= majority and self.state == NodeState.CANDIDATE:
+                logger.info(f"Received majority votes ({vote_count}/{len(self.peer_nodes)}), becoming leader")
+                await self._become_leader()
+        else:
+            logger.debug(f"Vote denied by {response.sender_id} for term {response.term}")
     
     async def _handle_heartbeat(self, heartbeat: Heartbeat):
         """Handle heartbeat from leader."""

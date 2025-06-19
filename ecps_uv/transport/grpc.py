@@ -495,9 +495,35 @@ class GRPCTransport(Transport):
                     
                     return method_impl
                 else:
-                    # Return a default handler
+                    # Return a more helpful default handler
                     async def default_handler(request, context):
-                        await context.abort(grpc.StatusCode.UNIMPLEMENTED, f"Method {method_name} not implemented")
+                        # Log the unimplemented method call
+                        logger.warning(f"Unimplemented method called: {service_name}.{method_name}")
+                        
+                        # Try to provide a helpful response based on method name patterns
+                        if method_name.lower().startswith('get'):
+                            # For getter methods, return an empty response
+                            context.set_code(grpc.StatusCode.NOT_FOUND)
+                            context.set_details(f"Resource not found for {method_name}")
+                        elif method_name.lower().startswith(('create', 'add', 'insert')):
+                            # For creation methods, indicate feature not available
+                            context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                            context.set_details(f"Creation method {method_name} not yet implemented")
+                        elif method_name.lower().startswith(('update', 'modify', 'edit')):
+                            # For update methods
+                            context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                            context.set_details(f"Update method {method_name} not yet implemented")
+                        elif method_name.lower().startswith(('delete', 'remove')):
+                            # For deletion methods
+                            context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                            context.set_details(f"Deletion method {method_name} not yet implemented")
+                        else:
+                            # Generic unimplemented
+                            context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                            context.set_details(f"Method {method_name} is not implemented in service {service_name}")
+                        
+                        # Return None to indicate error
+                        return None
                     
                     return default_handler
         
@@ -532,9 +558,26 @@ class GRPCTransport(Transport):
                         response_deserializer=lambda x: x,
                     )(serialized_request, timeout=timeout)
                     
-                    # For now, return raw bytes - in a real implementation,
-                    # you'd deserialize based on the expected response type
-                    return response_bytes
+                    # Deserialize the response based on the expected response type
+                    try:
+                        if response_type and hasattr(response_type, 'FromString'):
+                            # Protocol buffer response
+                            response_obj = response_type()
+                            response_obj.ParseFromString(response_bytes)
+                            return response_obj
+                        elif response_type and hasattr(response_type, '__call__'):
+                            # Custom deserializer function
+                            return response_type(response_bytes)
+                        else:
+                            # Try to deserialize using the transport's serializer
+                            if hasattr(self, 'serializer') and self.serializer:
+                                return await self.serializer.deserialize(response_bytes, response_type)
+                            else:
+                                # Fallback: return raw bytes if no deserializer available
+                                return response_bytes
+                    except Exception as e:
+                        logger.warning(f"Failed to deserialize response: {e}, returning raw bytes")
+                        return response_bytes
                 
                 return generic_method
         
@@ -733,7 +776,16 @@ class GRPCTransport(Transport):
                 else:
                     # Return a default handler
                     async def default_handler(request, context):
-                        await context.abort(grpc.StatusCode.UNIMPLEMENTED, f"Method {method_name} not implemented")
+                        # Log the unimplemented streaming method call
+                        logger.warning(f"Unimplemented streaming method called: {service_name}.{method_name}")
+                        
+                        # Provide helpful error response for streaming methods
+                        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+                        context.set_details(f"Streaming method {method_name} is not implemented in service {service_name}")
+                        
+                        # For streaming methods, we need to yield nothing and close
+                        return
+                        yield  # This makes it a generator for streaming
                     
                     return default_handler
         

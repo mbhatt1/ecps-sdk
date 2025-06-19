@@ -519,8 +519,130 @@ class TaskDistributor:
         # Rebalance if needed
         if overloaded_agents and underloaded_agents:
             logger.info(f"Rebalancing tasks: {len(overloaded_agents)} overloaded, {len(underloaded_agents)} underloaded")
-            # Implementation would move tasks from overloaded to underloaded agents
-            # This is a simplified version - real implementation would be more complex
+            
+            # Real implementation: move tasks from overloaded to underloaded agents
+            tasks_moved = 0
+            
+            for overloaded_agent in overloaded_agents:
+                if not underloaded_agents:
+                    break
+                    
+                # Get tasks from overloaded agent
+                agent_tasks = [task for task in self.pending_tasks.values()
+                              if task.assigned_agent == overloaded_agent]
+                
+                # Sort tasks by priority (move lower priority tasks first)
+                agent_tasks.sort(key=lambda t: t.priority)
+                
+                # Calculate how many tasks to move
+                current_load = len(agent_tasks)
+                target_load = self.max_tasks_per_agent
+                tasks_to_move = min(current_load - target_load, len(agent_tasks) // 2)
+                
+                for i in range(tasks_to_move):
+                    if not underloaded_agents:
+                        break
+                        
+                    task = agent_tasks[i]
+                    
+                    # Find best underloaded agent for this task
+                    best_agent = None
+                    best_score = float('-inf')
+                    
+                    for underloaded_agent in underloaded_agents:
+                        # Calculate assignment score based on agent capabilities
+                        score = self._calculate_assignment_score(task, underloaded_agent)
+                        if score > best_score:
+                            best_score = score
+                            best_agent = underloaded_agent
+                    
+                    if best_agent:
+                        # Move the task
+                        old_agent = task.assigned_agent
+                        task.assigned_agent = best_agent
+                        task.status = "reassigned"
+                        
+                        logger.info(f"Moved task {task.id} from {old_agent} to {best_agent}")
+                        tasks_moved += 1
+                        
+                        # Update agent loads
+                        current_underloaded_load = len([t for t in self.pending_tasks.values()
+                                                      if t.assigned_agent == best_agent])
+                        if current_underloaded_load >= self.max_tasks_per_agent:
+                            underloaded_agents.remove(best_agent)
+                        
+                        # Notify agents of the change
+                        await self._notify_task_reassignment(task, old_agent, best_agent)
+            
+            logger.info(f"Task rebalancing completed: {tasks_moved} tasks moved")
+    
+    def _calculate_assignment_score(self, task: Task, agent_id: str) -> float:
+        """Calculate how well suited an agent is for a task."""
+        score = 0.0
+        
+        # Get agent capabilities
+        agent_info = self.agents.get(agent_id, {})
+        agent_capabilities = agent_info.get("capabilities", [])
+        
+        # Score based on capability match
+        task_requirements = getattr(task, 'requirements', [])
+        if task_requirements:
+            matching_capabilities = set(agent_capabilities) & set(task_requirements)
+            score += len(matching_capabilities) * 10
+        
+        # Score based on agent load (prefer less loaded agents)
+        current_load = len([t for t in self.pending_tasks.values() if t.assigned_agent == agent_id])
+        load_factor = 1.0 - (current_load / self.max_tasks_per_agent)
+        score += load_factor * 5
+        
+        # Score based on agent performance history
+        agent_performance = agent_info.get("performance_score", 0.5)
+        score += agent_performance * 3
+        
+        return score
+    
+    async def _notify_task_reassignment(self, task: Task, old_agent: str, new_agent: str):
+        """Notify agents about task reassignment."""
+        try:
+            # Notify old agent to stop working on the task
+            old_agent_message = {
+                "type": "task_revoked",
+                "task_id": task.id,
+                "reason": "load_balancing",
+                "timestamp": time.time()
+            }
+            
+            if self.transport:
+                await self.transport.publish(
+                    f"agent/{old_agent}/tasks",
+                    old_agent_message,
+                    {"qos": 1}
+                )
+            
+            # Notify new agent about the task assignment
+            new_agent_message = {
+                "type": "task_assigned",
+                "task": {
+                    "id": task.id,
+                    "type": task.type,
+                    "priority": task.priority,
+                    "data": task.data,
+                    "requirements": getattr(task, 'requirements', [])
+                },
+                "timestamp": time.time()
+            }
+            
+            if self.transport:
+                await self.transport.publish(
+                    f"agent/{new_agent}/tasks",
+                    new_agent_message,
+                    {"qos": 1}
+                )
+                
+            logger.debug(f"Notified agents about task {task.id} reassignment: {old_agent} -> {new_agent}")
+            
+        except Exception as e:
+            logger.error(f"Failed to notify agents about task reassignment: {e}")
     
     async def _handle_task_status_update(self, message: Dict[str, Any]):
         """Handle task status updates from agents."""

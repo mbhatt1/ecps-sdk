@@ -479,9 +479,37 @@ class TrustProvider:
             logger.error(f"Principal not found: {id}")
             return None
             
-        # In a real implementation, you would validate the credential
-        # against stored credentials. For this example, we just return
-        # the principal if it exists.
+        # Validate the credential against stored credentials
+        # This would typically involve checking against a database or identity provider
+        
+        # For demonstration, we'll implement a simple credential validation
+        # In production, this should integrate with your identity management system
+        
+        # Check if we have an identity manager to validate credentials
+        if hasattr(self, 'identity_manager') and self.identity_manager:
+            try:
+                # Verify the credential using the identity manager
+                is_valid = self.identity_manager.verify_credential(principal.id, credential)
+                if not is_valid:
+                    logger.warning(f"Invalid credential for principal {principal.id}")
+                    return None
+            except Exception as e:
+                logger.error(f"Error validating credential for principal {principal.id}: {e}")
+                return None
+        else:
+            # Fallback: simple credential check (not recommended for production)
+            # This is just for backward compatibility
+            logger.warning("No identity manager configured, using fallback credential validation")
+            
+            # In a real implementation, you would never store plaintext credentials
+            # This is just for demonstration purposes
+            stored_credential = getattr(principal, '_credential', None)
+            if stored_credential != credential:
+                logger.warning(f"Credential mismatch for principal {principal.id}")
+                return None
+        
+        # Update last authenticated time
+        principal.last_authenticated = datetime.now()
         
         return principal
 

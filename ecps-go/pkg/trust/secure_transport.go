@@ -123,20 +123,49 @@ func (t *SecureTransport) Publish(ctx context.Context, topic string, message int
 	
 	// Encrypt message if trust level requires it
 	if t.trustProvider.trustLevel >= TrustLevelEncryption {
-		// In a real implementation, we would use a hybrid encryption scheme:
-		// 1. Generate a random symmetric key
-		// 2. Encrypt the message with the symmetric key
-		// 3. Encrypt the symmetric key with the recipient's public key
-		// 4. Include the encrypted key and IV in the secure message
+		// Generate a random symmetric key (AES-256)
+		symmetricKey := make([]byte, 32)
+		if _, err := rand.Read(symmetricKey); err != nil {
+			return fmt.Errorf("failed to generate symmetric key: %w", err)
+		}
 		
-		// For this example, we'll just note that encryption would happen here
-		// and leave the original message intact
+		// Generate IV for AES-CBC
+		iv := make([]byte, aes.BlockSize)
+		if _, err := rand.Read(iv); err != nil {
+			return fmt.Errorf("failed to generate IV: %w", err)
+		}
 		
-		// In a real implementation:
-		// encryptedMsg, encryptedKey, iv, err := t.encryptWithHybridScheme(messageBytes)
-		// secureMsg.Message = encryptedMsg
-		// secureMsg.EncryptedKey = encryptedKey
-		// secureMsg.IV = iv
+		// Encrypt the message with AES-CBC
+		block, err := aes.NewCipher(symmetricKey)
+		if err != nil {
+			return fmt.Errorf("failed to create AES cipher: %w", err)
+		}
+		
+		// Pad the message to block size
+		blockSize := aes.BlockSize
+		paddingLength := blockSize - (len(messageBytes) % blockSize)
+		paddedMessage := make([]byte, len(messageBytes)+paddingLength)
+		copy(paddedMessage, messageBytes)
+		for i := len(messageBytes); i < len(paddedMessage); i++ {
+			paddedMessage[i] = byte(paddingLength)
+		}
+		
+		// Encrypt with CBC mode
+		mode := cipher.NewCBCEncrypter(block, iv)
+		encryptedMessage := make([]byte, len(paddedMessage))
+		mode.CryptBlocks(encryptedMessage, paddedMessage)
+		
+		// Encrypt the symmetric key with RSA public key (if available)
+		if t.trustProvider.publicKey != nil {
+			encryptedKey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, t.trustProvider.publicKey, symmetricKey, nil)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt symmetric key: %w", err)
+			}
+			secureMsg.EncryptedKey = encryptedKey
+		}
+		
+		secureMsg.Message = encryptedMessage
+		secureMsg.IV = iv
 	}
 	
 	// Publish secure message
@@ -174,15 +203,45 @@ func (t *SecureTransport) Subscribe(
 		// Decrypt message if trust level requires it
 		messageBytes := secureMsg.Message
 		if t.trustProvider.trustLevel >= TrustLevelEncryption && secureMsg.EncryptedKey != nil {
-			// In a real implementation, we would:
-			// 1. Decrypt the symmetric key with our private key
-			// 2. Decrypt the message with the symmetric key and IV
+			// Decrypt the symmetric key with our private key
+			if t.trustProvider.privateKey == nil {
+				return errors.New("no private key available for decryption")
+			}
 			
-			// For this example, we'll just note that decryption would happen here
-			// messageBytes, err = t.decryptWithHybridScheme(secureMsg)
-			// if err != nil {
-			//     return fmt.Errorf("message decryption failed: %w", err)
-			// }
+			symmetricKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, t.trustProvider.privateKey, secureMsg.EncryptedKey, nil)
+			if err != nil {
+				return fmt.Errorf("failed to decrypt symmetric key: %w", err)
+			}
+			
+			// Decrypt the message with AES-CBC
+			if secureMsg.IV == nil || len(secureMsg.IV) != aes.BlockSize {
+				return errors.New("invalid or missing IV for decryption")
+			}
+			
+			block, err := aes.NewCipher(symmetricKey)
+			if err != nil {
+				return fmt.Errorf("failed to create AES cipher for decryption: %w", err)
+			}
+			
+			if len(secureMsg.Message)%aes.BlockSize != 0 {
+				return errors.New("encrypted message is not a multiple of block size")
+			}
+			
+			mode := cipher.NewCBCDecrypter(block, secureMsg.IV)
+			decryptedMessage := make([]byte, len(secureMsg.Message))
+			mode.CryptBlocks(decryptedMessage, secureMsg.Message)
+			
+			// Remove padding
+			if len(decryptedMessage) == 0 {
+				return errors.New("decrypted message is empty")
+			}
+			
+			paddingLength := int(decryptedMessage[len(decryptedMessage)-1])
+			if paddingLength > len(decryptedMessage) || paddingLength == 0 {
+				return errors.New("invalid padding in decrypted message")
+			}
+			
+			messageBytes = decryptedMessage[:len(decryptedMessage)-paddingLength]
 		}
 		
 		// Authenticate sender if trust level requires it
@@ -244,10 +303,41 @@ func (t *SecureTransport) Request(
 	timeout int64,
 	qos map[string]interface{},
 ) (interface{}, error) {
-	// Not implementing security for request/response yet
-	// In a real implementation, we would wrap the request in a SecureMessage
-	// and unwrap the response
-	return t.transport.Request(ctx, service, request, timeout, qos)
+	// Skip security if trust level is none
+	if t.trustProvider.trustLevel == TrustLevelNone {
+		return t.transport.Request(ctx, service, request, timeout, qos)
+	}
+	
+	// Get serializer from transport
+	serializer, ok := t.transport.(interface{ Serializer() core.Serializer })
+	if !ok {
+		return nil, errors.New("transport does not provide access to serializer")
+	}
+	
+	// Serialize the request
+	requestBytes, err := serializer.Serializer().Serialize(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize request: %w", err)
+	}
+	
+	// Create secure message
+	secureMsg, err := t.createSecureMessage(requestBytes, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create secure message: %w", err)
+	}
+	
+	// Send secure request
+	secureResponse, err := t.transport.Request(ctx, service, secureMsg, timeout, qos)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Unwrap secure response if it's a SecureMessage
+	if secureMsg, ok := secureResponse.(*SecureMessage); ok {
+		return t.unwrapSecureMessage(secureMsg, serializer.Serializer())
+	}
+	
+	return secureResponse, nil
 }
 
 // StreamRequest sends a streaming request with security features
@@ -259,10 +349,58 @@ func (t *SecureTransport) StreamRequest(
 	timeout int64,
 	qos map[string]interface{},
 ) error {
-	// Not implementing security for streaming request yet
-	// In a real implementation, we would wrap the request in a SecureMessage
-	// and unwrap the responses
-	return t.transport.StreamRequest(ctx, service, request, handler, timeout, qos)
+	// Skip security if trust level is none
+	if t.trustProvider.trustLevel == TrustLevelNone {
+		return t.transport.StreamRequest(ctx, service, request, handler, timeout, qos)
+	}
+	
+	// Get serializer from transport
+	serializer, ok := t.transport.(interface{ Serializer() core.Serializer })
+	if !ok {
+		return errors.New("transport does not provide access to serializer")
+	}
+	
+	// Create secure handler wrapper
+	secureHandler := func(ctx context.Context, response interface{}) error {
+		// Unwrap secure response if it's a SecureMessage
+		if secureMsg, ok := response.(*SecureMessage); ok {
+			unwrappedResponse, err := t.unwrapSecureMessage(secureMsg, serializer.Serializer())
+			if err != nil {
+				return fmt.Errorf("failed to unwrap secure response: %w", err)
+			}
+			
+			// Call original handler with unwrapped response
+			switch h := handler.(type) {
+			case func(context.Context, interface{}) error:
+				return h(ctx, unwrappedResponse)
+			default:
+				return errors.New("unsupported handler type")
+			}
+		} else {
+			// Direct response, call handler as-is
+			switch h := handler.(type) {
+			case func(context.Context, interface{}) error:
+				return h(ctx, response)
+			default:
+				return errors.New("unsupported handler type")
+			}
+		}
+	}
+	
+	// Serialize the request
+	requestBytes, err := serializer.Serializer().Serialize(request)
+	if err != nil {
+		return fmt.Errorf("failed to serialize request: %w", err)
+	}
+	
+	// Create secure message
+	secureMsg, err := t.createSecureMessage(requestBytes, request)
+	if err != nil {
+		return fmt.Errorf("failed to create secure message: %w", err)
+	}
+	
+	// Send secure streaming request
+	return t.transport.StreamRequest(ctx, service, secureMsg, secureHandler, timeout, qos)
 }
 
 // RegisterService registers a service with security features
@@ -274,10 +412,69 @@ func (t *SecureTransport) RegisterService(
 	responseType interface{},
 	qos map[string]interface{},
 ) error {
-	// Not implementing security for service registration yet
-	// In a real implementation, we would unwrap incoming SecureMessage objects
-	// and wrap outgoing responses
-	return t.transport.RegisterService(ctx, service, handler, requestType, responseType, qos)
+	// Skip security if trust level is none
+	if t.trustProvider.trustLevel == TrustLevelNone {
+		return t.transport.RegisterService(ctx, service, handler, requestType, responseType, qos)
+	}
+	
+	// Get serializer from transport
+	serializer, ok := t.transport.(interface{ Serializer() core.Serializer })
+	if !ok {
+		return errors.New("transport does not provide access to serializer")
+	}
+	
+	// Create secure handler wrapper
+	secureHandler := func(ctx context.Context, request interface{}) (interface{}, error) {
+		// Unwrap secure request if it's a SecureMessage
+		if secureMsg, ok := request.(*SecureMessage); ok {
+			unwrappedRequest, err := t.unwrapSecureMessage(secureMsg, serializer.Serializer())
+			if err != nil {
+				return nil, fmt.Errorf("failed to unwrap secure request: %w", err)
+			}
+			
+			// Call original handler with unwrapped request
+			var response interface{}
+			var handlerErr error
+			
+			switch h := handler.(type) {
+			case func(context.Context, interface{}) (interface{}, error):
+				response, handlerErr = h(ctx, unwrappedRequest)
+			default:
+				return nil, errors.New("unsupported handler type")
+			}
+			
+			if handlerErr != nil {
+				return nil, handlerErr
+			}
+			
+			// Wrap response in secure message if not nil
+			if response != nil {
+				responseBytes, err := serializer.Serializer().Serialize(response)
+				if err != nil {
+					return nil, fmt.Errorf("failed to serialize response: %w", err)
+				}
+				
+				secureResponse, err := t.createSecureMessage(responseBytes, response)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create secure response: %w", err)
+				}
+				
+				return secureResponse, nil
+			}
+			
+			return nil, nil
+		} else {
+			// Direct request, call handler as-is
+			switch h := handler.(type) {
+			case func(context.Context, interface{}) (interface{}, error):
+				return h(ctx, request)
+			default:
+				return nil, errors.New("unsupported handler type")
+			}
+		}
+	}
+	
+	return t.transport.RegisterService(ctx, service, secureHandler, &SecureMessage{}, &SecureMessage{}, qos)
 }
 
 // RegisterStreamService registers a streaming service with security features
@@ -289,8 +486,187 @@ func (t *SecureTransport) RegisterStreamService(
 	responseType interface{},
 	qos map[string]interface{},
 ) error {
-	// Not implementing security for streaming service registration yet
-	// In a real implementation, we would unwrap incoming SecureMessage objects
-	// and wrap outgoing responses
-	return t.transport.RegisterStreamService(ctx, service, handler, requestType, responseType, qos)
+	// Skip security if trust level is none
+	if t.trustProvider.trustLevel == TrustLevelNone {
+		return t.transport.RegisterStreamService(ctx, service, handler, requestType, responseType, qos)
+	}
+	
+	// Get serializer from transport
+	serializer, ok := t.transport.(interface{ Serializer() core.Serializer })
+	if !ok {
+		return errors.New("transport does not provide access to serializer")
+	}
+	
+	// Create secure streaming handler wrapper
+	secureStreamingHandler := func(ctx context.Context, request interface{}, responseHandler func(context.Context, interface{}) error) error {
+		// Create secure response handler
+		secureResponseHandler := func(ctx context.Context, response interface{}) error {
+			if response != nil {
+				responseBytes, err := serializer.Serializer().Serialize(response)
+				if err != nil {
+					return fmt.Errorf("failed to serialize response: %w", err)
+				}
+				
+				secureResponse, err := t.createSecureMessage(responseBytes, response)
+				if err != nil {
+					return fmt.Errorf("failed to create secure response: %w", err)
+				}
+				
+				return responseHandler(ctx, secureResponse)
+			}
+			return responseHandler(ctx, nil)
+		}
+		
+		// Unwrap secure request if it's a SecureMessage
+		if secureMsg, ok := request.(*SecureMessage); ok {
+			unwrappedRequest, err := t.unwrapSecureMessage(secureMsg, serializer.Serializer())
+			if err != nil {
+				return fmt.Errorf("failed to unwrap secure request: %w", err)
+			}
+			
+			// Call original handler with unwrapped request
+			switch h := handler.(type) {
+			case func(context.Context, interface{}, func(context.Context, interface{}) error) error:
+				return h(ctx, unwrappedRequest, secureResponseHandler)
+			default:
+				return errors.New("unsupported handler type")
+			}
+		} else {
+			// Direct request, call handler as-is
+			switch h := handler.(type) {
+			case func(context.Context, interface{}, func(context.Context, interface{}) error) error:
+				return h(ctx, request, responseHandler)
+			default:
+				return errors.New("unsupported handler type")
+			}
+		}
+	}
+	
+	return t.transport.RegisterStreamService(ctx, service, secureStreamingHandler, &SecureMessage{}, &SecureMessage{}, qos)
+}
+
+// createSecureMessage creates a secure message with encryption and signing if required
+func (t *SecureTransport) createSecureMessage(messageBytes []byte, originalMsg interface{}) (*SecureMessage, error) {
+	secureMsg := &SecureMessage{
+		Message:     messageBytes,
+		MessageType: fmt.Sprintf("%T", originalMsg),
+		SenderID:    t.trustProvider.principal.ID,
+		Timestamp:   time.Now().UnixNano(),
+	}
+	
+	// Add signature if trust level requires it
+	if t.trustProvider.trustLevel >= TrustLevelAuthenticated {
+		signature, err := t.trustProvider.SignMessage(messageBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to sign message: %w", err)
+		}
+		secureMsg.Signature = signature
+	}
+	
+	// Add encryption if trust level requires it
+	if t.trustProvider.trustLevel >= TrustLevelEncryption {
+		// Generate a random symmetric key (AES-256)
+		symmetricKey := make([]byte, 32)
+		if _, err := rand.Read(symmetricKey); err != nil {
+			return nil, fmt.Errorf("failed to generate symmetric key: %w", err)
+		}
+		
+		// Generate IV for AES-CBC
+		iv := make([]byte, aes.BlockSize)
+		if _, err := rand.Read(iv); err != nil {
+			return nil, fmt.Errorf("failed to generate IV: %w", err)
+		}
+		
+		// Encrypt the message with AES-CBC
+		block, err := aes.NewCipher(symmetricKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+		}
+		
+		// Pad the message to block size
+		blockSize := aes.BlockSize
+		paddingLength := blockSize - (len(messageBytes) % blockSize)
+		paddedMessage := make([]byte, len(messageBytes)+paddingLength)
+		copy(paddedMessage, messageBytes)
+		for i := len(messageBytes); i < len(paddedMessage); i++ {
+			paddedMessage[i] = byte(paddingLength)
+		}
+		
+		// Encrypt with CBC mode
+		mode := cipher.NewCBCEncrypter(block, iv)
+		encryptedMessage := make([]byte, len(paddedMessage))
+		mode.CryptBlocks(encryptedMessage, paddedMessage)
+		
+		// Encrypt the symmetric key with RSA public key (if available)
+		if t.trustProvider.publicKey != nil {
+			encryptedKey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, t.trustProvider.publicKey, symmetricKey, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encrypt symmetric key: %w", err)
+			}
+			secureMsg.EncryptedKey = encryptedKey
+		}
+		
+		secureMsg.Message = encryptedMessage
+		secureMsg.IV = iv
+	}
+	
+	return secureMsg, nil
+}
+
+// unwrapSecureMessage unwraps a secure message, verifying signature and decrypting if needed
+func (t *SecureTransport) unwrapSecureMessage(secureMsg *SecureMessage, serializer core.Serializer) (interface{}, error) {
+	messageBytes := secureMsg.Message
+	
+	// Verify signature if present
+	if secureMsg.Signature != nil {
+		if err := t.trustProvider.VerifyMessage(messageBytes, secureMsg.Signature); err != nil {
+			return nil, fmt.Errorf("signature verification failed: %w", err)
+		}
+	}
+	
+	// Decrypt if encrypted
+	if secureMsg.EncryptedKey != nil && secureMsg.IV != nil {
+		// Decrypt the symmetric key with our private key
+		if t.trustProvider.privateKey == nil {
+			return nil, errors.New("no private key available for decryption")
+		}
+		
+		symmetricKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, t.trustProvider.privateKey, secureMsg.EncryptedKey, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt symmetric key: %w", err)
+		}
+		
+		// Decrypt the message with AES-CBC
+		if len(secureMsg.IV) != aes.BlockSize {
+			return nil, errors.New("invalid IV size for decryption")
+		}
+		
+		block, err := aes.NewCipher(symmetricKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create AES cipher for decryption: %w", err)
+		}
+		
+		if len(secureMsg.Message)%aes.BlockSize != 0 {
+			return nil, errors.New("encrypted message is not a multiple of block size")
+		}
+		
+		mode := cipher.NewCBCDecrypter(block, secureMsg.IV)
+		decryptedMessage := make([]byte, len(secureMsg.Message))
+		mode.CryptBlocks(decryptedMessage, secureMsg.Message)
+		
+		// Remove padding
+		if len(decryptedMessage) == 0 {
+			return nil, errors.New("decrypted message is empty")
+		}
+		
+		paddingLength := int(decryptedMessage[len(decryptedMessage)-1])
+		if paddingLength > len(decryptedMessage) || paddingLength == 0 {
+			return nil, errors.New("invalid padding in decrypted message")
+		}
+		
+		messageBytes = decryptedMessage[:len(decryptedMessage)-paddingLength]
+	}
+	
+	// Deserialize the original message
+	return serializer.Deserialize(messageBytes, nil)
 }

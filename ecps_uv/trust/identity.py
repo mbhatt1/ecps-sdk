@@ -7,6 +7,9 @@ identity providers.
 """
 
 import enum
+import hashlib
+import hmac
+import secrets
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -151,7 +154,7 @@ class IdentityStore:
         """
         Set a credential for an identity.
         
-        In a real implementation, this would hash the credential.
+        This securely hashes the credential using PBKDF2 with SHA-256.
         
         Args:
             identity_id: The identity ID
@@ -160,8 +163,19 @@ class IdentityStore:
         if identity_id not in self.identities:
             raise ValueError(f"Identity not found: {identity_id}")
             
-        # In a real implementation, we would hash the credential
-        self.credentials[identity_id] = credential
+        # Generate a random salt
+        salt = secrets.token_bytes(32)
+        
+        # Hash the credential using PBKDF2 with SHA-256
+        hashed_credential = hashlib.pbkdf2_hmac(
+            'sha256',
+            credential.encode('utf-8'),
+            salt,
+            100000  # 100,000 iterations
+        )
+        
+        # Store salt + hash
+        self.credentials[identity_id] = salt + hashed_credential
     
     def verify_credential(self, identity_id: str, credential: str) -> bool:
         """
@@ -177,13 +191,27 @@ class IdentityStore:
         if identity_id not in self.identities:
             return False
             
-        # In a real implementation, we would verify against a hashed credential
         stored_credential = self.credentials.get(identity_id)
         if not stored_credential:
             return False
             
-        # Simple string comparison (would use secure comparison in real implementation)
-        is_valid = stored_credential == credential
+        # Extract salt and hash from stored credential
+        if len(stored_credential) < 64:  # 32 bytes salt + 32 bytes hash
+            return False
+            
+        salt = stored_credential[:32]
+        stored_hash = stored_credential[32:]
+        
+        # Hash the provided credential with the same salt
+        candidate_hash = hashlib.pbkdf2_hmac(
+            'sha256',
+            credential.encode('utf-8'),
+            salt,
+            100000  # Same number of iterations
+        )
+        
+        # Use constant-time comparison to prevent timing attacks
+        is_valid = hmac.compare_digest(stored_hash, candidate_hash)
         
         # Update last authenticated time if valid
         if is_valid:

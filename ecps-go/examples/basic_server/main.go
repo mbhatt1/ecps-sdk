@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,6 +26,19 @@ const (
 	serverName    = "ecps-example-server"
 	serverVersion = "1.0.0"
 	deviceID      = "example_device" // Device ID for actuation
+)
+
+// ActionInfo tracks active actions for cancellation
+type ActionInfo struct {
+	id     string
+	cancel context.CancelFunc
+	startTime time.Time
+}
+
+// Global action tracking
+var (
+	activeActions = make(map[string]*ActionInfo)
+	actionsMutex  sync.RWMutex
 )
 
 func main() {
@@ -532,6 +546,25 @@ func registerEAPHandler(ctx context.Context, eapHandler *actuation.EAPHandler) e
 			}
 		}
 
+		// Create cancellable context for this action
+		actionCtx, actionCancel := context.WithCancel(ctx)
+		
+		// Track the action for cancellation
+		actionsMutex.Lock()
+		activeActions[eap.Id] = &ActionInfo{
+			id:        eap.Id,
+			cancel:    actionCancel,
+			startTime: time.Now(),
+		}
+		actionsMutex.Unlock()
+		
+		// Ensure cleanup when action completes
+		defer func() {
+			actionsMutex.Lock()
+			delete(activeActions, eap.Id)
+			actionsMutex.Unlock()
+		}()
+
 		// Update status to running
 		if err := eapHandler.SendActionResult(
 			ctx,
@@ -554,7 +587,15 @@ func registerEAPHandler(ctx context.Context, eapHandler *actuation.EAPHandler) e
 		}
 		
 		log.Printf("Processing action %s (simulating work for %v)...", eap.Id, processingTime)
-		time.Sleep(processingTime)
+		
+		// Use select to allow cancellation during processing
+		select {
+		case <-actionCtx.Done():
+			log.Printf("Action %s was cancelled during processing", eap.Id)
+			return actionCtx.Err()
+		case <-time.After(processingTime):
+			// Processing completed normally
+		}
 
 		// Generate result based on action name
 		var result []byte
@@ -634,8 +675,18 @@ func registerEAPHandler(ctx context.Context, eapHandler *actuation.EAPHandler) e
 	cancelHandler := func(ctx context.Context, eap *pb.EAP) error {
 		log.Printf("Received cancellation request for action ID: %s", eap.Id)
 		
-		// In a real implementation, we would look up the action and cancel it
-		// For this example, we just acknowledge the cancellation
+		// Look up the action and cancel it
+		actionsMutex.Lock()
+		action, exists := activeActions[eap.Id]
+		if exists {
+			// Cancel the action's context to stop execution
+			action.cancel()
+			delete(activeActions, eap.Id)
+			log.Printf("Successfully cancelled action: %s", eap.Id)
+		} else {
+			log.Printf("Action not found or already completed: %s", eap.Id)
+		}
+		actionsMutex.Unlock()
 		
 		// Send cancelled status
 		if err := eapHandler.SendActionResult(

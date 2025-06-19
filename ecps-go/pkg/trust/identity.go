@@ -3,6 +3,8 @@ package trust
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,6 +12,8 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/pbkdf2"
+	"crypto/sha256"
 )
 
 // IdentityType defines the type of identity
@@ -157,8 +161,21 @@ func (s *IdentityStore) SetCredential(identityID string, credential string) erro
 		return fmt.Errorf("identity not found: %s", identityID)
 	}
 
-	// In a real implementation, we would hash the credential
-	s.credentials[identityID] = credential
+	// Generate a random salt
+	salt := make([]byte, 32)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// Hash the credential using PBKDF2 with SHA-256
+	hashedCredential := pbkdf2.Key([]byte(credential), salt, 100000, 32, sha256.New)
+
+	// Store salt + hash
+	storedCredential := make([]byte, 64)
+	copy(storedCredential[:32], salt)
+	copy(storedCredential[32:], hashedCredential)
+
+	s.credentials[identityID] = string(storedCredential)
 	return nil
 }
 
@@ -181,8 +198,20 @@ func (s *IdentityStore) VerifyCredential(identityID string, credential string) (
 		return false, errors.New("no credential set for identity")
 	}
 
-	// Simple string comparison (would use secure comparison in real implementation)
-	isValid := storedCredential == credential
+	// Extract salt and hash from stored credential
+	storedBytes := []byte(storedCredential)
+	if len(storedBytes) < 64 { // 32 bytes salt + 32 bytes hash
+		return false, errors.New("invalid stored credential format")
+	}
+
+	salt := storedBytes[:32]
+	storedHash := storedBytes[32:]
+
+	// Hash the provided credential with the same salt
+	candidateHash := pbkdf2.Key([]byte(credential), salt, 100000, 32, sha256.New)
+
+	// Use constant-time comparison to prevent timing attacks
+	isValid := subtle.ConstantTimeCompare(storedHash, candidateHash) == 1
 
 	// Update last authenticated time if valid
 	if isValid {

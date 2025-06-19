@@ -495,7 +495,52 @@ func (p *TrustProvider) Authenticate(ctx context.Context, id string, credential 
 	}
 	
 	// In a real implementation, you'd validate the credential against stored credentials
-	// For this example, we'll just return the principal if it exists
+	// Validate the credential against stored credentials
+	// This would typically involve checking against a database or identity provider
+	
+	// Check if we have an identity store to validate credentials
+	if p.identityStore != nil {
+		isValid, err := p.identityStore.VerifyCredential(principal.ID, credential)
+		if err != nil {
+			err = fmt.Errorf("error validating credential for principal %s: %w", principal.ID, err)
+			if span != nil {
+				span.RecordError(err)
+			}
+			return nil, err
+		}
+		if !isValid {
+			err = fmt.Errorf("invalid credential for principal %s", principal.ID)
+			if span != nil {
+				span.RecordError(err)
+			}
+			return nil, err
+		}
+	} else {
+		// Fallback: simple credential check (not recommended for production)
+		// This is just for backward compatibility
+		
+		// In a real implementation, you would never store plaintext credentials
+		// This is just for demonstration purposes
+		if storedCredential, exists := p.credentials[principal.ID]; exists {
+			if storedCredential != credential {
+				err = fmt.Errorf("credential mismatch for principal %s", principal.ID)
+				if span != nil {
+					span.RecordError(err)
+				}
+				return nil, err
+			}
+		} else {
+			err = fmt.Errorf("no stored credential found for principal %s", principal.ID)
+			if span != nil {
+				span.RecordError(err)
+			}
+			return nil, err
+		}
+	}
+	
+	// Update last authenticated time
+	now := time.Now()
+	principal.LastAuthenticated = &now
 	
 	return principal, nil
 }

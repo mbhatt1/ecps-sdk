@@ -6,19 +6,24 @@ The Python implementation of the Embodied Cognition Protocol Stack (ECPS) SDK.
 
 ECPS-UV is a complete, high-performance Python implementation of the Embodied Cognition Protocol Stack (ECPS) specification, utilizing modern Python libraries for asynchronous I/O operations and advanced security features.
 
-## 🔥 NEW: Unified API
+## 🔥 NEW: Unified API + Identity Forwarding by Default
 
-**Revolutionary Change**: The ECPS-UV SDK now provides a **single unified interface** for ALL protocols instead of separate handlers!
+**Revolutionary Changes**:
+1. **Single unified interface** for ALL protocols instead of separate handlers!
+2. **Identity forwarding enabled by default** - no more per-request signing overhead!
 
-### Quick Start with Unified API
+### Quick Start with Unified API + Identity Forwarding
 
 ```python
-from ecps_uv.core import ECPSClient, EdgeLiteProfile
+from ecps_uv.core import ECPSClient, StandardProfile
 
-# Single client for everything
-client = ECPSClient(EdgeLiteProfile())
+# Single client with identity forwarding enabled by default
+client = ECPSClient(StandardProfile())
 
-# Single method for ALL operations
+# Establish identity once (replaces per-request signing)
+await client.establish_identity("user-123", "password", {"read", "write", "coordinate"})
+
+# Single method for ALL operations - identity automatically forwarded!
 await client.send_unified("prompt", prompt="Analyze environment", tool_json=tools)
 await client.send_unified("memory_put", tensor_zstd=embedding, shape=[512], dtype="f32")
 await client.send_unified("action", action_type="set_pose", action_data=pose_data)
@@ -32,9 +37,14 @@ await client.listen_unified(handlers)
 
 # Single querying interface
 results = await client.query_unified("memory", {"k": 10, "min_sim": 0.8})
+
+# Identity management
+status = client.get_identity_status()  # Check session status
+await client.refresh_identity()        # Extend session
+await client.revoke_identity()         # End session
 ```
 
-**Benefits**: ✅ Single API ✅ Consistent interface ✅ Unified storage ✅ Simplified error handling ✅ Better observability
+**Benefits**: ✅ Single API ✅ Identity forwarding by default ✅ No per-request signing overhead ✅ Better performance ✅ Session-based security ✅ Unified storage ✅ Simplified error handling ✅ Better observability
 
 See [`UNIFIED_API.md`](../UNIFIED_API.md) for complete documentation.
 

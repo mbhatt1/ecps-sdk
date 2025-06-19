@@ -29,6 +29,8 @@ class ECPSConfig:
         transport_config: Optional[Dict[str, Any]] = None,
         otlp_endpoint: Optional[str] = None,
         log_level: int = logging.INFO,
+        identity_forwarding_enabled: bool = True,
+        session_duration_hours: int = 8,
     ):
         """
         Initialize ECPS configuration.
@@ -41,6 +43,8 @@ class ECPSConfig:
             transport_config: Additional transport-specific configuration
             otlp_endpoint: OpenTelemetry endpoint URL
             log_level: Logging level
+            identity_forwarding_enabled: Whether to use identity forwarding by default
+            session_duration_hours: Default session duration for identity contexts
         """
         self.profile = profile.lower()
         self.transport_type = transport_type.lower()
@@ -49,6 +53,8 @@ class ECPSConfig:
         self.transport_config = transport_config or {}
         self.otlp_endpoint = otlp_endpoint
         self.log_level = log_level
+        self.identity_forwarding_enabled = identity_forwarding_enabled
+        self.session_duration_hours = session_duration_hours
         
         # Set up logging
         logging.basicConfig(
@@ -103,6 +109,8 @@ class EdgeLiteProfile(ECPSConfig):
             observability_enabled=False,
             transport_config=transport_config,
             log_level=log_level,
+            identity_forwarding_enabled=True,  # Enable by default
+            session_duration_hours=4,  # Shorter sessions for edge devices
         )
 
 
@@ -125,6 +133,8 @@ class StandardProfile(ECPSConfig):
             transport_config=transport_config,
             otlp_endpoint=otlp_endpoint,
             log_level=log_level,
+            identity_forwarding_enabled=True,  # Enable by default
+            session_duration_hours=8,  # Standard session duration
         )
 
 
@@ -147,6 +157,8 @@ class CloudFleetProfile(ECPSConfig):
             transport_config=transport_config,
             otlp_endpoint=otlp_endpoint,
             log_level=log_level,
+            identity_forwarding_enabled=True,  # Enable by default
+            session_duration_hours=12,  # Longer sessions for cloud environments
         )
 
 
@@ -172,6 +184,8 @@ class ECPSClient:
         self.serializer = None
         self.telemetry = None
         self.loop = None
+        self.identity_forwarding_manager = None
+        self.identity_context = None
         
         # Initialize components based on configuration
         self._initialize_components()
@@ -182,6 +196,10 @@ class ECPSClient:
         from ecps_uv.transport import DDSTransport, GRPCTransport, MQTTTransport
         from ecps_uv.serialization import ProtobufSerializer
         from ecps_uv.observability import ECPSTelemetry
+        from ecps_uv.trust.trust import create_default_trust_provider
+        from ecps_uv.trust.identity import create_default_identity_provider
+        from ecps_uv.trust.identity_forwarding import create_default_identity_forwarding_manager
+        from ecps_uv.trust.secure_transport import SecureTransport
         
         # Create the UV-powered event loop
         self.loop = uv.Loop.default()
@@ -211,6 +229,24 @@ class ECPSClient:
         else:
             raise ValueError(f"Unsupported transport type: {self.config.transport_type}")
         
+        # Initialize identity forwarding by default if enabled
+        if self.config.identity_forwarding_enabled:
+            # Create trust and identity providers
+            trust_provider = create_default_trust_provider()
+            identity_store, identity_provider = create_default_identity_provider()
+            
+            # Create identity forwarding manager
+            self.identity_forwarding_manager = create_default_identity_forwarding_manager(
+                identity_provider, trust_provider
+            )
+            
+            # Wrap transport with secure transport using identity forwarding
+            self.transport = SecureTransport(
+                transport=self.transport,
+                trust_provider=trust_provider,
+                identity_forwarding_manager=self.identity_forwarding_manager,
+            )
+        
         # Initialize telemetry if enabled
         if self.config.observability_enabled:
             self.telemetry = ECPSTelemetry(
@@ -227,6 +263,146 @@ class ECPSClient:
             self.serializer,
             self.telemetry
         )
+# ========== IDENTITY FORWARDING METHODS ==========
+    
+    async def establish_identity(
+        self, 
+        identity_id: str, 
+        credential: str, 
+        capabilities: Optional[set] = None
+    ):
+        """
+        Establish an identity context for this client (enables identity forwarding).
+        
+        This method authenticates once and creates a session that can be forwarded
+        with all subsequent requests, eliminating the need for per-request signing.
+        
+        Args:
+            identity_id: Identity to authenticate
+            credential: Authentication credential
+            capabilities: Set of capabilities to grant
+            
+        Returns:
+            bool: True if identity was established successfully
+        """
+        if not self.config.identity_forwarding_enabled:
+            logger.warning("Identity forwarding is disabled in configuration")
+            return False
+            
+        if not self.identity_forwarding_manager:
+            logger.error("Identity forwarding manager not initialized")
+            return False
+        
+        from datetime import timedelta
+        
+        try:
+            # Establish identity context
+            self.identity_context = await self.identity_forwarding_manager.establish_identity_context(
+                identity_id=identity_id,
+                credential=credential,
+                capabilities=capabilities or {"read", "write", "coordinate"},
+                session_duration=timedelta(hours=self.config.session_duration_hours),
+            )
+            
+            if self.identity_context:
+                # Set identity context on secure transport
+                if hasattr(self.transport, 'set_identity_context'):
+                    self.transport.set_identity_context(self.identity_context)
+                
+                logger.info(f"Identity context established for {identity_id}")
+                logger.info(f"Session expires: {self.identity_context.expires_at}")
+                return True
+            else:
+                logger.error("Failed to establish identity context")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error establishing identity: {e}")
+            return False
+    
+    def get_identity_status(self) -> Dict[str, Any]:
+        """
+        Get the current identity context status.
+        
+        Returns:
+            Dict containing identity status information
+        """
+        if not self.identity_context:
+            return {"authenticated": False, "reason": "No identity context"}
+        
+        if self.identity_context.is_expired:
+            return {"authenticated": False, "reason": "Identity context expired"}
+        
+        return {
+            "authenticated": True,
+            "identity_id": self.identity_context.identity.id,
+            "identity_name": self.identity_context.identity.name,
+            "session_id": self.identity_context.session_id,
+            "expires_at": self.identity_context.expires_at.isoformat(),
+            "time_remaining": str(self.identity_context.time_remaining),
+            "capabilities": list(self.identity_context.capabilities),
+        }
+    
+    async def refresh_identity(self, additional_hours: int = None) -> bool:
+        """
+        Refresh the current identity context to extend its lifetime.
+        
+        Args:
+            additional_hours: Additional hours to extend (defaults to config value)
+            
+        Returns:
+            bool: True if refresh was successful
+        """
+        if not self.identity_context:
+            logger.error("No identity context to refresh")
+            return False
+        
+        if not self.identity_forwarding_manager:
+            logger.error("Identity forwarding manager not available")
+            return False
+        
+        from datetime import timedelta
+        
+        hours = additional_hours or self.config.session_duration_hours
+        additional_duration = timedelta(hours=hours)
+        
+        success = self.identity_forwarding_manager.refresh_context(
+            self.identity_context.session_id,
+            additional_duration=additional_duration,
+        )
+        
+        if success:
+            logger.info(f"Identity context refreshed for {hours} hours")
+        else:
+            logger.error("Failed to refresh identity context")
+        
+        return success
+    
+    async def revoke_identity(self) -> bool:
+        """
+        Revoke the current identity context.
+        
+        Returns:
+            bool: True if revocation was successful
+        """
+        if not self.identity_context:
+            return True  # Already no identity
+        
+        if not self.identity_forwarding_manager:
+            logger.error("Identity forwarding manager not available")
+            return False
+        
+        success = self.identity_forwarding_manager.revoke_context(
+            self.identity_context.session_id
+        )
+        
+        if success:
+            logger.info("Identity context revoked")
+            self.identity_context = None
+        else:
+            logger.error("Failed to revoke identity context")
+        
+        return success
     
     async def send_mcp(self, prompt: str, tool_json: Optional[bytes] = None, meta: Optional[Dict[str, str]] = None):
         """

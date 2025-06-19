@@ -29,6 +29,12 @@ from ecps_uv.trust.identity import (
     IdentityProvider,
     create_default_identity_provider,
 )
+from ecps_uv.trust.identity_forwarding import (
+    IdentityContext,
+    ForwardedRequest,
+    IdentityForwardingManager,
+    create_default_identity_forwarding_manager,
+)
 
 __all__ = [
     "TrustLevel",
@@ -50,4 +56,8 @@ __all__ = [
     "IdentityStore",
     "IdentityProvider",
     "create_default_identity_provider",
+    "IdentityContext",
+    "ForwardedRequest",
+    "IdentityForwardingManager",
+    "create_default_identity_forwarding_manager",
 ]

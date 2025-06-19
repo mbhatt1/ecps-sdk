@@ -1,0 +1,95 @@
+# ECPS Golden Path Configuration
+# Production-grade configuration for agentic AI robotics
+
+# Security Configuration (P2 Hardening)
+security:
+  jwt_rotation_interval: 86400  # 24 hours
+  mtls_enabled: true
+  hsm_enabled: false  # Set to true if HSM available
+  tpm_enabled: false  # Set to true if TPM available
+  certificate_path: "./certs"
+  ca_cert_path: "./certs/ca.crt"
+  server_cert_path: "./certs/gateway.crt"
+  server_key_path: "./certs/gateway.key"
+
+# Perception Configuration
+perception:
+  max_fps: 30
+  tensor_compression: "zstd"
+  object_detection_threshold: 0.7
+  camera_width: 640
+  camera_height: 480
+  processing_threads: 4
+
+# Cognition Configuration
+cognition:
+  llm_provider: "openai"  # openai, anthropic, local
+  model: "gpt-4"
+  temperature: 0.7
+  max_tokens: 1000
+  memory_retrieval_limit: 10
+  reasoning_timeout: 30000  # ms
+  fallback_enabled: true
+
+# Actuation Configuration
+actuation:
+  robot_endpoint: "localhost:8081"
+  action_timeout: 30000  # ms
+  safety_checks: true
+  max_velocity: 1.0  # m/s
+  max_acceleration: 2.0  # m/s²
+  max_force: 50.0  # N
+  workspace_limits:
+    min: [-0.8, -0.8, 0.0]
+    max: [0.8, 0.8, 1.5]
+
+# Observability Configuration
+observability:
+  metrics_port: 8000
+  tracing_enabled: true
+  log_level: "INFO"
+  prometheus_endpoint: "http://prometheus:9090"
+  jaeger_endpoint: "http://jaeger:14268"
+
+# Transport Configuration
+transport:
+  type: "dds"  # dds, grpc, mqtt
+  dds:
+    domain_id: 0
+    qos_profile: "reliable"
+  grpc:
+    max_message_size: 4194304  # 4MB
+    keepalive_time: 30
+  mqtt:
+    broker_host: "mosquitto"
+    broker_port: 1883
+    qos: 1
+
+# Database Configuration
+database:
+  redis:
+    host: "redis"
+    port: 6379
+    password: "ecps123"
+    db: 0
+  postgres:
+    host: "postgres"
+    port: 5432
+    database: "ecps"
+    username: "ecps"
+    password: "ecps123"
+
+# Performance Targets
+performance:
+  perception_latency_target: 0.05  # 50ms
+  cognition_latency_target: 0.1    # 100ms
+  actuation_latency_target: 0.1    # 100ms
+  end_to_end_latency_target: 0.2   # 200ms
+  throughput_target: 30  # FPS
+
+# Development/Testing Overrides
+development:
+  mock_llm: false
+  mock_robot: false
+  debug_mode: false
+  test_data_path: "./test_data"

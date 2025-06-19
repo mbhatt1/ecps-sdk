@@ -38,6 +38,40 @@ This document elaborates on the architecture, protocols, implementation details,
 The following sections will delve into the specific layers of the ECPS, detailing their functions, interactions, and the technologies that underpin them. Each layer is designed to work seamlessly with the others, creating a cohesive system that can adapt to various applications in robotics and AI.
 
 \section{System Architecture}
+
+\subsection{Revolutionary Unified API}
+ECPS has achieved a major breakthrough with the introduction of the \textbf{Unified ECPS Protocol (UEP)}, which consolidates all separate protocol APIs into a single unified interface. This represents a paradigm shift from managing multiple separate handlers to a single, consistent API for all operations.
+
+\textbf{Before (Separate APIs):}
+\begin{verbatim}
+# Multiple handlers for different protocols
+mcp_handler = MCPHandler(transport, serializer, telemetry)
+mep_client = MEPClient(transport, serializer, telemetry)
+eap_handler = EAPHandler(transport, serializer, telemetry)
+# ... more handlers
+
+# Different methods for each operation
+await mcp_handler.send(prompt, message_id, tool_json, meta)
+await mep_client.put(tensor_zstd, shape, dtype, frame_id, timestamp_ns)
+await eap_handler.send(action_type, action_data, message_id, state_sha, meta)
+\end{verbatim}
+
+\textbf{After (Unified API):}
+\begin{verbatim}
+# Single client with unified handler
+client = ECPSClient(config)
+
+# Single method for ALL operations
+await client.send_unified("prompt", prompt=prompt, tool_json=tool_json, meta=meta)
+await client.send_unified("memory_put", tensor_zstd=tensor_zstd, shape=shape, dtype=dtype, frame_id=frame_id, timestamp_ns=timestamp_ns)
+await client.send_unified("action", action_type=action_type, action_data=action_data, state_sha=state_sha, meta=meta)
+await client.send_unified("perception", tensor_zstd=tensor_zstd, shape=shape, dtype=dtype, frame_id=frame_id, timestamp_ns=timestamp_ns)
+await client.send_unified("coordinate", coordination_type=coordination_type, agent_ids=agent_ids, coordination_data=data)
+await client.send_unified("trust", trust_operation="verify_identity", identity=identity, trust_data=trust_data)
+await client.send_unified("telemetry", metric_type=metric_type, metric_data=metric_data, timestamp_ns=timestamp_ns)
+\end{verbatim}
+
+\subsection{Layered Architecture Foundation}
 ECPS is organized into multiple interconnected layers, each responsible for specific functionalities:
 
 \begin{itemize}
@@ -46,9 +80,10 @@ ECPS is organized into multiple interconnected layers, each responsible for spec
   \item \textbf{Cognition Layer (L6)}: Manages model context, memory, reasoning, and response routing via MCP and MEP protocols.
   \item \textbf{Actuation Layer (L7)}: Facilitates robotic control, scheduling, and action chaining through Embodied Action Protocol (EAP).
   \item \textbf{Trust and Security}: Enforces authentication, authorization, encryption, and identity management.
+  \item \textbf{Unified API Layer}: Consolidates all protocols into a single, consistent interface (UEP).
 \end{itemize}
 
-The architecture of ECPS is designed to be modular, allowing for easy updates and integration of new technologies. Each layer can be developed and improved independently, which is crucial for maintaining the system's overall performance and adaptability.
+The architecture of ECPS is designed to be modular, allowing for easy updates and integration of new technologies. Each layer can be developed and improved independently, which is crucial for maintaining the system's overall performance and adaptability. The unified API layer provides a consistent interface while maintaining the underlying modular architecture.
 
 \begin{figure}[H]
 \centering
